@@ -1,0 +1,102 @@
+See the file INSTALL for compilation and installation instructions.
+
+Description
+
+Tarlz is a massively parallel (multi-threaded) combined implementation of
+the tar archiver and the lzip compressor. Tarlz uses the compression library
+lzlib.
+
+Tarlz creates tar archives using a simplified and safer variant of the POSIX
+pax format compressed in lzip format, keeping the alignment between tar
+members and lzip members. The resulting multimember tar.lz archive is
+backward compatible with standard tar tools like GNU tar, which treat it
+like any other tar.lz archive. Tarlz can append files to the end of such
+compressed archives.
+
+Keeping the alignment between tar members and lzip members has two
+advantages. It adds an indexed lzip layer on top of the tar archive, making
+it possible to decode the archive safely in parallel. It also minimizes the
+amount of data lost in case of corruption. Compressing a tar archive with
+plzip may even double the amount of files lost for each lzip member damaged
+because it does not keep the members aligned.
+
+Tarlz can create tar archives with five levels of compression granularity:
+per file (--no-solid), per block (--bsolid, default), per directory
+(--dsolid), appendable solid (--asolid), and solid (--solid). It can also
+create uncompressed tar archives.
+
+Of course, compressing each file (or each directory) individually can't
+achieve a compression ratio as high as compressing solidly the whole tar
+archive, but it has the following advantages:
+
+   * The resulting multimember tar.lz archive can be decompressed in
+     parallel, multiplying the decompression speed.
+
+   * New members can be appended to the archive (by removing the
+     end-of-archive member), and unwanted members can be deleted from the
+     archive. Just like an uncompressed tar archive.
+
+   * It is a safe POSIX-style backup format. In case of corruption, tarlz
+     can extract all the undamaged members from the tar.lz archive,
+     skipping over the damaged members, just like the standard
+     (uncompressed) tar. Moreover, the option '--keep-damaged' can be used
+     to recover as much data as possible from each damaged member, and
+     lziprecover can be used to recover some of the damaged members.
+
+   * A multimember tar.lz archive is usually smaller than the corresponding
+     solidly compressed tar.gz archive, except when individually
+     compressing files smaller than about 32 KiB.
+
+Note that the POSIX pax format has a serious flaw. The metadata stored in
+pax extended records are not protected by any kind of check sequence.
+Corruption in a long file name may cause the extraction of the file in the
+wrong place without warning. Corruption in a large file size may cause the
+truncation of the file or the appending of garbage to the file, both
+followed by a spurious warning about a corrupt header far from the place of
+the undetected corruption.
+
+Metadata like file name and file size must be always protected in an archive
+format because of the adverse effects of undetected corruption in them,
+potentially much worse that undetected corruption in the data. Even more so
+in the case of pax because the amount of metadata it stores is potentially
+large, making undetected corruption and archiver misbehavior more probable.
+
+Headers and metadata must be protected separately from data because the
+integrity checking of lzip may not be able to detect the corruption before
+the metadata have been used, for example, to create a new file in the wrong
+place.
+
+Because of the above, tarlz protects the extended records with a Cyclic
+Redundancy Check (CRC) in a way compatible with standard tar tools.
+
+Tarlz does not understand other tar formats like gnu, oldgnu, star, or v7.
+The command 'tarlz -t -f archive.tar.lz > /dev/null' can be used to check
+that the format of the archive is compatible with tarlz.
+
+The diagram below shows the correspondence between each tar member (formed
+by one or two headers plus optional data) in the tar archive and each lzip
+member in the resulting multimember tar.lz archive, when per file compression
+is used:
+
+tar
++========+======+=================+===============+========+======+========+
+| header | data | extended header | extended data | header | data |   EOA  |
++========+======+=================+===============+========+======+========+
+
+tar.lz
++===============+=================================================+========+
+|     member    |                      member                     | member |
++===============+=================================================+========+
+
+
+Tarlz uses Arg_parser for command-line argument parsing:
+http://www.nongnu.org/arg-parser/arg_parser.html
+
+
+Copyright (C) 2013-2024 Antonio Diaz Diaz.
+
+This file is free documentation: you have unlimited permission to copy,
+distribute, and modify it.
+
+The file Makefile.in is a data file used by configure to produce the Makefile.
+It has the same copyright owner and permissions that configure itself.

@@ -1,0 +1,35 @@
+Changes in version 1.24:
+
+The option '--empty-error', which forces exit status 2 if any empty member
+is found, has been added.
+
+The option '--marking-error', which forces exit status 2 if the first LZMA
+byte is non-zero in any member, has been added.
+
+The option '--clear-marking', which sets to zero the first LZMA byte of each
+member, has been added.
+
+The keyword 'empty' is now recognized in the argument of '--dump',
+'--remove', and '--strip'.
+
+The option '--repair' has been renamed to '--byte-repair'.
+
+The option '--debug-repair' has been renamed to '--debug-byte-repair'.
+
+File diagnostics have been reformatted as 'PROGRAM: FILE: MESSAGE'.
+
+Diagnostics caused by invalid arguments to command-line options now show the
+argument and the name of the option.
+
+The option '-o, --output' now preserves dates, permissions, and ownership of
+the file, when decompressing exactly one file.
+
+The option '-o, --output' now creates missing intermediate directories when
+writing to a file.
+
+The option '--no-verify' of unzcrash has been renamed to '--no-check'.
+
+The variable MAKEINFO has been added to configure and Makefile.in.
+
+The makefile target 'install-as-lzip' has been removed because '--reproduce'
+needs a lzip compressor (not just a decompressor) named 'lzip' by default.

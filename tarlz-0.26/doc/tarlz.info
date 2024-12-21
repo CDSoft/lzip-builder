@@ -1,0 +1,1316 @@
+This is tarlz.info, produced by makeinfo version 4.13+ from tarlz.texi.
+
+INFO-DIR-SECTION Archiving
+START-INFO-DIR-ENTRY
+* Tarlz: (tarlz).               Archiver with multimember lzip compression
+END-INFO-DIR-ENTRY
+
+
+File: tarlz.info,  Node: Top,  Next: Introduction,  Up: (dir)
+
+Tarlz Manual
+************
+
+This manual is for Tarlz (version 0.26, 7 December 2024).
+
+* Menu:
+
+* Introduction::              Purpose and features of tarlz
+* Invoking tarlz::            Command-line interface
+* Argument syntax::           By convention, options start with a hyphen
+* Portable character set::    POSIX portable filename character set
+* File format::               Detailed format of the compressed archive
+* Amendments to pax format::  The reasons for the differences with pax
+* Program design::            Internal structure of tarlz
+* Multi-threaded decoding::   Limitations of parallel tar decoding
+* Minimum archive sizes::     Sizes required for full multi-threaded speed
+* Examples::                  A small tutorial with examples
+* Problems::                  Reporting bugs
+* Concept index::             Index of concepts
+
+
+   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+
+   This manual is free documentation: you have unlimited permission to copy,
+distribute, and modify it.
+
+
+File: tarlz.info,  Node: Introduction,  Next: Invoking tarlz,  Prev: Top,  Up: Top
+
+1 Introduction
+**************
+
+Tarlz is a massively parallel (multi-threaded) combined implementation of
+the tar archiver and the lzip compressor. Tarlz uses the compression
+library lzlib.
+
+   Tarlz creates tar archives using a simplified and safer variant of the
+POSIX pax format compressed in lzip format, keeping the alignment between
+tar members and lzip members. The resulting multimember tar.lz archive is
+backward compatible with standard tar tools like GNU tar, which treat it
+like any other tar.lz archive. Tarlz can append files to the end of such
+compressed archives.
+
+   Keeping the alignment between tar members and lzip members has two
+advantages. It adds an indexed lzip layer on top of the tar archive, making
+it possible to decode the archive safely in parallel. It also minimizes the
+amount of data lost in case of corruption. Compressing a tar archive with
+plzip may even double the amount of files lost for each lzip member damaged
+because it does not keep the members aligned.
+
+   Tarlz can create tar archives with five levels of compression
+granularity: per file ('--no-solid'), per block ('--bsolid', default), per
+directory ('--dsolid'), appendable solid ('--asolid'), and solid
+('--solid'). It can also create uncompressed tar archives.
+
+Of course, compressing each file (or each directory) individually can't
+achieve a compression ratio as high as compressing solidly the whole tar
+archive, but it has the following advantages:
+
+   * The resulting multimember tar.lz archive can be decompressed in
+     parallel, multiplying the decompression speed.
+
+   * New members can be appended to the archive (by removing the
+     end-of-archive member), and unwanted members can be deleted from the
+     archive. Just like an uncompressed tar archive.
+
+   * It is a safe POSIX-style backup format. In case of corruption, tarlz
+     can extract all the undamaged members from the tar.lz archive,
+     skipping over the damaged members, just like the standard
+     (uncompressed) tar. Moreover, the option '--keep-damaged' can be used
+     to recover as much data as possible from each damaged member, and
+     lziprecover can be used to recover some of the damaged members.
+
+   * A multimember tar.lz archive is usually smaller than the corresponding
+     solidly compressed tar.gz archive, except when individually
+     compressing files smaller than about 32 KiB.
+
+   Tarlz protects the extended records with a Cyclic Redundancy Check (CRC)
+in a way compatible with standard tar tools. *Note crc32::.
+
+   Tarlz does not understand other tar formats like 'gnu', 'oldgnu',
+'star', or 'v7'. The command 'tarlz -t -f archive.tar.lz > /dev/null' can
+be used to check that the format of the archive is compatible with tarlz.
+
+
+File: tarlz.info,  Node: Invoking tarlz,  Next: Argument syntax,  Prev: Introduction,  Up: Top
+
+2 Invoking tarlz
+****************
+
+The format for running tarlz is:
+
+     tarlz OPERATION [OPTIONS] [FILES]
+
+All operations except '--concatenate' and '--compress' operate on whole
+trees if any FILE is a directory. All operations except '--compress'
+overwrite output files without warning. If no archive is specified, tarlz
+tries to read it from standard input or write it to standard output. Tarlz
+refuses to read archive data from a terminal or write archive data to a
+terminal. Tarlz detects when the archive being created or enlarged is among
+the files to be archived, appended, or concatenated, and skips it.
+
+   Tarlz does not use absolute file names nor file names above the current
+working directory (perhaps changed by option '-C'). On archive creation or
+appending tarlz archives the files specified, but removes from member names
+any leading and trailing slashes and any file name prefixes containing a
+'..' component. On extraction, leading and trailing slashes are also
+removed from member names, and archive members containing a '..' component
+in the file name are skipped. Tarlz does not follow symbolic links during
+extraction; not even symbolic links replacing intermediate directories.
+
+   On extraction and listing, tarlz removes leading './' strings from
+member names in the archive or given in the command line, so that
+'tarlz -xf foo ./bar baz' extracts members 'bar' and './baz' from archive
+'foo'.
+
+   If several compression levels or '--*solid' options are given, the last
+setting is used. For example '-9 --solid --uncompressed -1' is equivalent
+to '-1 --solid'.
+
+tarlz supports the following operations:
+
+'--help'
+     Print an informative help message describing the options and exit.
+
+'-V'
+'--version'
+     Print the version number of tarlz on the standard output and exit.
+     This version number should be included in all bug reports.
+
+'-A'
+'--concatenate'
+     Append one or more archives to the end of an archive. If no archive is
+     specified with the option '-f', concatenate the input archives to
+     standard output. All the archives involved must be regular (seekable)
+     files, and must be either all compressed or all uncompressed.
+     Compressed and uncompressed archives can't be mixed. Compressed
+     archives must be multimember lzip files with the two end-of-archive
+     blocks plus any zero padding contained in the last lzip member of each
+     archive. The intermediate end-of-archive blocks are removed as each
+     new archive is concatenated. If the archive is uncompressed, tarlz
+     parses tar headers until it finds the end-of-archive blocks. Exit with
+     status 0 without modifying the archive if no FILES have been specified.
+
+     Concatenating archives containing files in common results in two or
+     more tar members with the same name in the resulting archive, which
+     may produce nondeterministic behavior during multi-threaded extraction.
+     *Note mt-extraction::.
+
+'-c'
+'--create'
+     Create a new archive from FILES.
+
+'-d'
+'--diff'
+     Compare and report differences between archive and file system. For
+     each tar member in the archive, check that the corresponding file in
+     the file system exists and is of the same type (regular file,
+     directory, etc). Report on standard output the differences found in
+     type, mode (permissions), owner and group IDs, modification time, file
+     size, file contents (of regular files), target (of symlinks) and
+     device number (of block/character special files).
+
+     As tarlz removes leading slashes from member names, the option '-C' may
+     be used in combination with '--diff' when absolute file names were used
+     on archive creation: 'tarlz -C / -d'. Alternatively, tarlz may be run
+     from the root directory to perform the comparison.
+
+'--delete'
+     Delete files and directories from an archive in place. It currently can
+     delete only from uncompressed archives and from archives with files
+     compressed individually ('--no-solid' archives). Note that files of
+     about '--data-size' or larger are compressed individually even if
+     '--bsolid' is used, and can therefore be deleted. Tarlz takes care to
+     not delete a tar member unless it is possible to do so. For example it
+     won't try to delete a tar member that is not compressed individually.
+     Even in the case of finding a corrupt member after having deleted some
+     member(s), tarlz stops and copies the rest of the file as soon as
+     corruption is found, leaving it just as corrupt as it was, but not
+     worse.
+
+     To delete a directory without deleting the files under it, use
+     'tarlz --delete -f foo --exclude='dir/*' dir'. Deleting in place may
+     be dangerous. A corrupt archive, a power cut, or an I/O error may cause
+     data loss.
+
+'-r'
+'--append'
+     Append files to the end of an archive. The archive must be a regular
+     (seekable) file either compressed or uncompressed. Compressed members
+     can't be appended to an uncompressed archive, nor vice versa. If the
+     archive is compressed, it must be a multimember lzip file with the two
+     end-of-archive blocks plus any zero padding contained in the last lzip
+     member of the archive. It is possible to append files to an archive
+     with a different compression granularity. Appending works as follows;
+     first the end-of-archive blocks are removed, then the new members are
+     appended, and finally two new end-of-archive blocks are appended to
+     the archive. If the archive is uncompressed, tarlz parses and skips
+     tar headers until it finds the end-of-archive blocks. Exit with status
+     0 without modifying the archive if no FILES have been specified.
+
+     Appending files already present in the archive results in two or more
+     tar members with the same name, which may produce nondeterministic
+     behavior during multi-threaded extraction. *Note mt-extraction::.
+
+'-t'
+'--list'
+     List the contents of an archive. If FILES are given, list only the
+     FILES given.
+
+'-x'
+'--extract'
+     Extract files from an archive. If FILES are given, extract only the
+     FILES given. Else extract all the files in the archive. To extract a
+     directory without extracting the files under it, use
+     'tarlz -xf foo --exclude='dir/*' dir'. Tarlz removes files and empty
+     directories unconditionally before extracting over them. Other than
+     that, it does not make any special effort to extract a file over an
+     incompatible type of file. For example, extracting a file over a
+     non-empty directory usually fails.
+
+'-z'
+'--compress'
+     Compress existing POSIX tar archives aligning the lzip members to the
+     tar members with choice of granularity ('--bsolid' by default,
+     '--dsolid' works like '--asolid'). Exit with error status 2 if any
+     input archive is an empty file. The input archives are kept unchanged.
+     Existing compressed archives are not overwritten. A hyphen '-' used as
+     the name of an input archive reads from standard input and writes to
+     standard output (unless the option '--output' is used). Tarlz can be
+     used as compressor for GNU tar by using a command like
+     'tar -c -Hustar foo | tarlz -z -o foo.tar.lz'. Tarlz can be used as
+     compressor for zupdate (zutils) by using a command like
+     'zupdate --lz='tarlz -z' foo.tar.gz'. Note that tarlz only works
+     reliably on archives without global headers, or with global headers
+     whose content can be ignored.
+
+     The compression is reversible, including any garbage present after the
+     end-of-archive blocks. Tarlz stops parsing after the first
+     end-of-archive block is found, and then compresses the rest of the
+     archive. Unless solid compression is requested, the end-of-archive
+     blocks are compressed in a lzip member separated from the preceding
+     members and from any nonzero garbage following the end-of-archive
+     blocks. '--compress' implies plzip argument style, not tar style. Each
+     input archive is compressed to a file with the extension '.lz' added
+     unless the option '--output' is used. When '--output' is used, only
+     one input archive can be specified. '-f' can't be used with
+     '--compress'.
+
+'--check-lib'
+     Compare the version of lzlib used to compile tarlz with the version
+     actually being used at run time and exit. Report any differences
+     found. Exit with error status 1 if differences are found. A mismatch
+     may indicate that lzlib is not correctly installed or that a different
+     version of lzlib has been installed after compiling tarlz. Exit with
+     error status 2 if LZ_API_VERSION and LZ_version_string don't match.
+     'tarlz -v --check-lib' shows the version of lzlib being used and the
+     value of LZ_API_VERSION (if defined). *Note Library version:
+     (lzlib)Library version.
+
+
+tarlz supports the following options: *Note Argument syntax::.
+
+'-B BYTES'
+'--data-size=BYTES'
+     Set target size of input data blocks for the option '--bsolid'. *Note
+     --bsolid::. Valid values range from 8 KiB to 1 GiB. Default value is
+     two times the dictionary size, except for option '-0' where it
+     defaults to 1 MiB. *Note Minimum archive sizes::.
+
+'-C DIR'
+'--directory=DIR'
+     Change to directory DIR. When creating, appending, comparing, or
+     extracting, the position of each option '-C' in the command line is
+     significant; it changes the current working directory for the following
+     FILES until a new option '-C' appears in the command line. '--list'
+     and '--delete' ignore any option '-C' specified. DIR is relative to
+     the then current working directory, perhaps changed by a previous
+     option '-C'.
+
+     Note that a process can only have one current working directory (CWD).
+     Therefore multi-threading can't be used to create or decode an archive
+     if an option '-C' appears after a (relative) file name in the command
+     line. (All file names are made relative by removing leading slashes
+     when decoding).
+
+'-f ARCHIVE'
+'--file=ARCHIVE'
+     Use archive file ARCHIVE. A hyphen '-' used as an ARCHIVE argument
+     reads from standard input or writes to standard output.
+
+'-h'
+'--dereference'
+     Follow symbolic links during archive creation, appending or comparison.
+     Archive or compare the files they point to instead of the links
+     themselves.
+
+'-n N'
+'--threads=N'
+     Set the number of (de)compression threads, overriding the system's
+     default. Valid values range from 0 to as many as your system can
+     support. A value of 0 disables threads entirely. If this option is not
+     used, tarlz tries to detect the number of processors in the system and
+     use it as default value. 'tarlz --help' shows the system's default
+     value. See the note about multi-threading in the option '-C' above.
+
+     Note that the number of usable threads is limited during compression to
+     ceil( uncompressed_size / data_size ) (*note Minimum archive sizes::),
+     and during decompression to the number of lzip members in the tar.lz
+     archive, which you can find by running 'lzip -lv archive.tar.lz'.
+
+'-o FILE'
+'--output=FILE'
+     Write the compressed output to FILE. '-o -' writes the compressed
+     output to standard output. Currently '--output' only works with
+     '--compress'.
+
+'-p'
+'--preserve-permissions'
+     On extraction, set file permissions as they appear in the archive.
+     This is the default behavior when tarlz is run by the superuser. The
+     default for other users is to subtract the umask of the user running
+     tarlz from the permissions specified in the archive.
+
+'-q'
+'--quiet'
+     Quiet operation. Suppress all messages.
+
+'-v'
+'--verbose'
+     Verbosely list files processed. Further -v's (up to 4) increase the
+     verbosity level.
+
+'-0 .. -9'
+     Set the compression level for '--create', '--append', and
+     '--compress'. The default compression level is '-6'. Like lzip, tarlz
+     also minimizes the dictionary size of the lzip members it creates,
+     reducing the amount of memory required for decompression.
+
+     Level   Dictionary size   Match length limit
+     --------------------------------------------
+     -0      64 KiB            16 bytes
+     -1      1 MiB             5 bytes
+     -2      1.5 MiB           6 bytes
+     -3      2 MiB             8 bytes
+     -4      3 MiB             12 bytes
+     -5      4 MiB             20 bytes
+     -6      8 MiB             36 bytes
+     -7      16 MiB            68 bytes
+     -8      24 MiB            132 bytes
+     -9      32 MiB            273 bytes
+
+'--uncompressed'
+     With '--create', don't compress the tar archive created. Create an
+     uncompressed tar archive instead. With '--append', don't compress the
+     new members appended to the tar archive. Compressed members can't be
+     appended to an uncompressed archive, nor vice versa. '--uncompressed'
+     can be omitted if it can be deduced from the archive name. (An
+     uncompressed archive name lacks a '.lz' or '.tlz' extension).
+
+'--asolid'
+     When creating or appending to a compressed archive, use appendable
+     solid compression. All the files being added to the archive are
+     compressed into a single lzip member, but the end-of-archive blocks
+     are compressed into a separate lzip member. This creates a solidly
+     compressed appendable archive. Solid archives can't be created nor
+     decoded in parallel.
+
+'--bsolid'
+     When creating or appending to a compressed archive, use block
+     compression. Tar members are compressed together in a lzip member
+     until they approximate a target uncompressed size. The size can't be
+     exact because each solidly compressed data block must contain an
+     integer number of tar members. Block compression is the default
+     because it improves compression ratio for archives with many files
+     smaller than the block size. This option allows tarlz revert to
+     default behavior if, for example, it is invoked through an alias like
+     'tar='tarlz --solid''. *Note --data-size::, to set the target block
+     size.
+
+'--dsolid'
+     When creating or appending to a compressed archive, compress each file
+     specified in the command line separately in its own lzip member, and
+     use solid compression for each directory specified in the command
+     line. The end-of-archive blocks are compressed into a separate lzip
+     member. This creates a compressed appendable archive with a separate
+     lzip member for each file or top-level directory specified.
+
+'--no-solid'
+     When creating or appending to a compressed archive, compress each file
+     separately in its own lzip member. The end-of-archive blocks are
+     compressed into a separate lzip member. This creates a compressed
+     appendable archive with a lzip member for each file.
+
+'--solid'
+     When creating or appending to a compressed archive, use solid
+     compression. The files being added to the archive, along with the
+     end-of-archive blocks, are compressed into a single lzip member. The
+     resulting archive is not appendable. No more files can be later
+     appended to the archive. Solid archives can't be created nor decoded
+     in parallel.
+
+'--anonymous'
+     Equivalent to '--owner=root --group=root'.
+
+'--owner=OWNER'
+     When creating or appending, use OWNER for files added to the archive.
+     If OWNER is not a valid user name, it is decoded as a decimal numeric
+     user ID.
+
+'--group=GROUP'
+     When creating or appending, use GROUP for files added to the archive.
+     If GROUP is not a valid group name, it is decoded as a decimal numeric
+     group ID.
+
+'--exclude=PATTERN'
+     Exclude files matching a shell pattern like '*.o'. A file is considered
+     to match if any component of the file name matches. For example, '*.o'
+     matches 'foo.o', 'foo.o/bar' and 'foo/bar.o'. If PATTERN contains a
+     '/', it matches a corresponding '/' in the file name. For example,
+     'foo/*.o' matches 'foo/bar.o'. Multiple '--exclude' options can be
+     specified.
+
+'--ignore-ids'
+     Make '--diff' ignore differences in owner and group IDs. This option is
+     useful when comparing an '--anonymous' archive.
+
+'--ignore-metadata'
+     Make '--diff' ignore any differences in metadata (file permissions,
+     owner and group IDs, modification time). Compare only file type, file
+     size, and file content. This option is useful when file permissions
+     have not been fully restored because uid/gid changed on extraction.
+
+'--ignore-overflow'
+     Make '--diff' ignore differences in mtime caused by overflow on 32-bit
+     systems with a 32-bit time_t.
+
+'--keep-damaged'
+     Don't delete partially extracted files. If a decompression error
+     happens while extracting a file, keep the partial data extracted. Use
+     this option to recover as much data as possible from each damaged
+     member. It is recommended to run tarlz in single-threaded mode
+     ('--threads=0') when using this option.
+
+'--missing-crc'
+     Exit with error status 2 if the CRC of the extended records is
+     missing. When this option is used, tarlz detects any corruption in the
+     extended records (only limited by CRC collisions). But note that a
+     corrupt 'GNU.crc32' keyword, for example 'GNU.crc30', is reported as a
+     missing CRC instead of as a corrupt record. This misleading
+     'Missing CRC' message is the consequence of a flaw in the POSIX pax
+     format; i.e., the lack of a mandatory check sequence of the extended
+     records. *Note crc32::.
+
+'--mtime=DATE'
+     When creating or appending, use DATE as the modification time for
+     files added to the archive instead of their actual modification times.
+     The value of DATE may be either '@' followed by the number of seconds
+     since (or before) the epoch, or a date in format
+     '[-]YYYY-MM-DD HH:MM:SS' or '[-]YYYY-MM-DDTHH:MM:SS', or the name of
+     an existing reference file starting with '.' or '/' whose modification
+     time is used. The time of day 'HH:MM:SS' in the date format is
+     optional and defaults to '00:00:00'. The epoch is
+     '1970-01-01 00:00:00 UTC'. Negative seconds or years define a
+     modification time before the epoch.
+
+'--out-slots=N'
+     Number of 1 MiB output packets buffered per worker thread during
+     multi-threaded creation or appending to compressed archives.
+     Increasing the number of packets may increase compression speed if the
+     files being archived are larger than 64 MiB compressed, but requires
+     more memory. Valid values range from 1 to 1024. The default value is
+     64.
+
+'--warn-newer'
+     During archive creation, warn if any file being archived has a
+     modification time newer than the archive creation time. This option
+     may slow archive creation somewhat because it makes an extra call to
+     'stat' after archiving each file, but it guarantees that file contents
+     were not modified during the creation of the archive. Note that the
+     file must be at least one second newer than the archive for it to be
+     detected as newer.
+
+
+   Exit status: 0 for a normal exit, 1 for environmental problems (file not
+found, files differ, invalid command-line options, I/O errors, etc), 2 to
+indicate a corrupt or invalid input file, 3 for an internal consistency
+error (e.g., bug) which caused tarlz to panic.
+
+
+File: tarlz.info,  Node: Argument syntax,  Next: Portable character set,  Prev: Invoking tarlz,  Up: Top
+
+3 Syntax of command-line arguments
+**********************************
+
+POSIX recommends these conventions for command-line arguments.
+
+   * A command-line argument is an option if it begins with a hyphen ('-').
+
+   * Option names are single alphanumeric characters.
+
+   * Certain options require an argument.
+
+   * An option and its argument may or may not appear as separate tokens.
+     (In other words, the whitespace separating them is optional). Thus,
+     '-o foo' and '-ofoo' are equivalent.
+
+   * One or more options without arguments, followed by at most one option
+     that takes an argument, may follow a hyphen in a single token. Thus,
+     '-abc' is equivalent to '-a -b -c'.
+
+   * Options typically precede other non-option arguments.
+
+   * The argument '--' terminates all options; any following arguments are
+     treated as non-option arguments, even if they begin with a hyphen.
+
+   * A token consisting of a single hyphen character is interpreted as an
+     ordinary non-option argument. By convention, it is used to specify
+     standard input, standard output, or a file named '-'.
+
+GNU adds "long options" to these conventions:
+
+   * A long option consists of two hyphens ('--') followed by a name made
+     of alphanumeric characters and hyphens. Option names are typically one
+     to three words long, with hyphens to separate words. Abbreviations can
+     be used for the long option names as long as the abbreviations are
+     unique.
+
+   * A long option and its argument may or may not appear as separate
+     tokens. In the latter case they must be separated by an equal sign '='.
+     Thus, '--foo bar' and '--foo=bar' are equivalent.
+
+
+File: tarlz.info,  Node: Portable character set,  Next: File format,  Prev: Argument syntax,  Up: Top
+
+4 POSIX portable filename character set
+***************************************
+
+The set of characters from which portable file names are constructed.
+
+     A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+     a b c d e f g h i j k l m n o p q r s t u v w x y z
+     0 1 2 3 4 5 6 7 8 9 . _ -
+
+   The last three characters are the period, underscore, and hyphen-minus
+characters, respectively.
+
+   File names are identifiers. Therefore, archiving works better when file
+names use only the portable character set without spaces added.
+
+
+File: tarlz.info,  Node: File format,  Next: Amendments to pax format,  Prev: Portable character set,  Up: Top
+
+5 File format
+*************
+
+In the diagram below, a box like this:
+
++---+
+|   | <-- the vertical bars might be missing
++---+
+
+   represents one byte; a box like this:
+
++==============+
+|              |
++==============+
+
+   represents a variable number of bytes or a fixed but large number of
+bytes (for example 512).
+
+A tar.lz file consists of one or more lzip members (compressed data sets).
+The members simply appear one after another in the file, with no additional
+information before, between, or after them. Empty members (data size = 0)
+are not allowed in multimember files.
+
+   Each lzip member contains one or more tar members in a simplified POSIX
+pax interchange format. The only pax typeflag value supported by tarlz (in
+addition to the typeflag values defined by the ustar format) is 'x'. The
+pax format is an extension on top of the ustar format that removes the size
+limitations of the ustar format.
+
+   Each tar member contains one file archived, and is represented by the
+following sequence:
+
+   * An optional extended header block followed by one or more blocks that
+     contain the extended header records as if they were the contents of a
+     file; i.e., the extended header records are included as the data for
+     this header block. This header block is of the form described in pax
+     header block, with a typeflag value of 'x'.
+
+   * A header block in ustar format that describes the file. Any fields
+     defined in the preceding optional extended header records override the
+     associated fields in this header block for this file.
+
+   * Zero or more blocks that contain the contents of the file.
+
+   Each tar member must be contiguously stored in a lzip member for the
+parallel decoding operations like '--list' to work. If any tar member is
+split over two or more lzip members, the archive must be decoded
+sequentially. *Note Multi-threaded decoding::.
+
+   At the end of the archive file there are two 512-byte blocks filled with
+binary zeros, interpreted as an end-of-archive indicator. These EOA blocks
+are either compressed in a separate lzip member or compressed along with the
+tar members contained in the last lzip member. For a compressed archive to
+be recognized by tarlz as appendable, the last lzip member must contain
+between 512 and 32256 zeros alone (without any nonzero bytes).
+
+   The diagram below shows the correspondence between each tar member
+(formed by one or two headers plus optional data) in the tar archive and
+each lzip member in the resulting multimember tar.lz archive, when per file
+compression is used: *Note File format: (lzip)File format.
+
+tar
++========+======+=================+===============+========+======+========+
+| header | data | extended header | extended data | header | data |   EOA  |
++========+======+=================+===============+========+======+========+
+
+tar.lz
++===============+=================================================+========+
+|     member    |                      member                     | member |
++===============+=================================================+========+
+
+5.1 Pax header block
+====================
+
+The pax header block is identical to the ustar header block described below
+except that the typeflag has the value 'x' (extended). The field 'size' is
+the size of the extended header data in bytes. Most other fields in the pax
+header block are zeroed on archive creation to prevent trouble if the
+archive is read by a ustar tool, and are ignored by tarlz on archive
+extraction. *Note flawed-compat::.
+
+   Tarlz limits the size of the pax extended header data so that the whole
+header set (extended header + extended data + ustar header) can be read and
+decoded in a buffer of size INT_MAX.
+
+   The pax extended header data consists of one or more records, each of
+them constructed as follows:
+'"%d %s=%s\n", <length>, <keyword>, <value>'
+
+   The fields <length> and <keyword> in the record must be limited to the
+portable character set (*note Portable character set::). The field <length>
+contains the decimal length of the record in bytes, including the trailing
+newline. The field <value> is stored as-is, without conversion to UTF-8 nor
+any other transformation. The fields are separated by the ASCII characters
+space, equal-sign, and newline.
+
+   These are the <keyword> values currently supported by tarlz:
+
+'atime'
+     The signed decimal representation of the access time of the following
+     file in seconds since (or before) the epoch, obtained from the function
+     'stat'. The atime record is created only for files with a modification
+     time outside of the ustar range. *Note ustar-mtime::.
+
+'gid'
+     The unsigned decimal representation of the group ID of the group that
+     owns the following file. The gid record is created only for files with
+     a group ID greater than 2_097_151 (octal 7_777_777). *Note
+     ustar-uid-gid::.
+
+'linkpath'
+     The file name of a link being created to another file, of any type,
+     previously archived. This record overrides the field 'linkname' in the
+     following ustar header block. The following ustar header block
+     determines the type of link created. If typeflag of the following
+     header block is 1, a hard link is created. If typeflag is 2, a
+     symbolic link is created and the linkpath value is used as the
+     contents of the symbolic link. The linkpath record is created only for
+     links with a link name that does not fit in the space provided by the
+     ustar header.
+
+'mtime'
+     The signed decimal representation of the modification time of the
+     following file in seconds since (or before) the epoch, obtained from
+     the function 'stat'. This record overrides the field 'mtime' in the
+     following ustar header block. The mtime record is created only for
+     files with a modification time outside of the ustar range. *Note
+     ustar-mtime::.
+
+'path'
+     The file name of the following file. This record overrides the fields
+     'name' and 'prefix' in the following ustar header block. The path
+     record is created for files with a name that does not fit in the space
+     provided by the ustar header, but is also created for files that
+     require any other extended record so that the fields 'name' and
+     'prefix' in the following ustar header block can be zeroed.
+
+'size'
+     The size of the file in bytes, expressed as a decimal number using
+     digits from the ISO/IEC 646:1991 (ASCII) standard. This record
+     overrides the field 'size' in the following ustar header block. The
+     size record is created only for files with a size value greater than
+     8_589_934_591 (octal 77_777_777_777); that is, 8 GiB (2^33 bytes) or
+     larger.
+
+'uid'
+     The unsigned decimal representation of the user ID of the file owner
+     of the following file. The uid record is created only for files with a
+     user ID greater than 2_097_151 (octal 7_777_777). *Note
+     ustar-uid-gid::.
+
+'GNU.crc32'
+     CRC32-C (Castagnoli) of the extended header data excluding the 8 bytes
+     representing the CRC <value> itself. The <value> is represented as 8
+     hexadecimal digits in big endian order, '22 GNU.crc32=00000000\n'. The
+     keyword of the CRC record is protected by the CRC to guarantee that
+     corruption is always detected when using '--missing-crc' (except in
+     case of CRC collision). A CRC was chosen because a checksum is too
+     weak for a potentially large list of variable sized records. A
+     checksum can't detect simple errors like the swapping of two bytes.
+
+
+   At verbosity level 1 or higher tarlz prints a diagnostic for each unknown
+extended header keyword found in an archive, once per keyword.
+
+5.2 Ustar header block
+======================
+
+The ustar header block has a length of 512 bytes and is structured as shown
+in the following table. All lengths and offsets are in decimal:
+
+Field Name   Offset   Length (in bytes)
+---------------------------------------
+name         0        100
+mode         100      8
+uid          108      8
+gid          116      8
+size         124      12
+mtime        136      12
+chksum       148      8
+typeflag     156      1
+linkname     157      100
+magic        257      6
+version      263      2
+uname        265      32
+gname        297      32
+devmajor     329      8
+devminor     337      8
+prefix       345      155
+
+   All characters in the header block are coded using the ISO/IEC 646:1991
+(ASCII) standard, except in fields storing names for files, users, and
+groups. For maximum portability between implementations, names should only
+contain characters from the portable character set (*note Portable
+character set::), but if an implementation supports the use of characters
+outside of '/' and the portable character set in names for files, users,
+and groups, tarlz will use the byte values in these names unmodified.
+
+   The fields 'name', 'linkname', and 'prefix' are null-terminated
+character strings except when all characters in the array contain non-null
+characters including the last character.
+
+   The fields 'name' and 'prefix' produce the file name. A new file name is
+formed, if prefix is not an empty string (its first character is not null),
+by concatenating prefix (up to the first null character), a slash
+character, and name; otherwise, name is used alone. In either case, name is
+terminated at the first null character. If prefix begins with a null
+character, it is ignored. In this manner, file names of at most 256
+characters can be supported. If a file name does not fit in the space
+provided, an extended record is used to store the file name.
+
+   The field 'linkname' does not use the prefix to produce a file name. If
+the link name does not fit in the 100 characters provided, an extended
+record is used to store the link name.
+
+   The field 'mode' provides 12 access permission bits. The following table
+shows the symbolic name of each bit and its octal value:
+
+Bit Name   Value   Bit Name   Value   Bit Name   Value
+---------------------------------------------------
+S_ISUID    04000   S_ISGID    02000   S_ISVTX    01000
+S_IRUSR    00400   S_IWUSR    00200   S_IXUSR    00100
+S_IRGRP    00040   S_IWGRP    00020   S_IXGRP    00010
+S_IROTH    00004   S_IWOTH    00002   S_IXOTH    00001
+
+   The fields 'uid' and 'gid' are the user and group IDs of the owner and
+group of the file, respectively. If the file uid or gid are greater than
+2_097_151 (octal 7_777_777), an extended record is used to store the uid or
+gid.
+
+   The field 'size' contains the octal representation of the size of the
+file in bytes. If the field 'typeflag' specifies a file of type '0'
+(regular file) or '7' (high performance regular file), the number of logical
+records following the header is (size / 512) rounded to the next integer.
+For all other values of typeflag, tarlz either sets the size field to 0 or
+ignores it, and does not store or expect any logical records following the
+header. If the file size is larger than 8_589_934_591 bytes
+(octal 77_777_777_777), an extended record is used to store the file size.
+
+   The field 'mtime' contains the octal representation of the modification
+time of the file at the time it was archived, obtained from the function
+'stat'. If the modification time is negative or larger than 8_589_934_591
+(octal 77_777_777_777) seconds since the epoch, an extended record is used
+to store the modification time. The ustar range of mtime goes from
+'1970-01-01 00:00:00 UTC' to '2242-03-16 12:56:31 UTC'.
+
+   The field 'chksum' contains the octal representation of the value of the
+simple sum of all bytes in the header logical record. Each byte in the
+header is treated as an unsigned value. When calculating the checksum, the
+chksum field is treated as if it were all space characters.
+
+   The field 'typeflag' contains a single character specifying the type of
+file archived:
+
+''0''
+     Regular file.
+
+''1''
+     Hard link to another file, of any type, previously archived. Hard
+     links must not contain file data.
+
+''2''
+     Symbolic link.
+
+''3', '4''
+     Character special file and block special file respectively. In this
+     case the fields 'devmajor' and 'devminor' contain information defining
+     the device in unspecified format.
+
+''5''
+     Directory.
+
+''6''
+     FIFO special file.
+
+''7''
+     Reserved to represent a file to which an implementation has associated
+     some high-performance attribute (contiguous file). Tarlz treats this
+     type of file as a regular file (type 0).
+
+
+   The field 'magic' contains the ASCII null-terminated string "ustar". The
+field 'version' contains the characters "00" (0x30,0x30). The fields
+'uname' and 'gname' are null-terminated character strings except when all
+characters in the array contain non-null characters including the last
+character. Each numeric field contains a leading space- or zero-filled,
+optionally null-terminated octal number using digits from the ISO/IEC
+646:1991 (ASCII) standard. Tarlz is able to decode numeric fields 1 byte
+longer than standard ustar by not requiring a terminating null character.
+
+
+File: tarlz.info,  Node: Amendments to pax format,  Next: Program design,  Prev: File format,  Up: Top
+
+6 The reasons for the differences with pax
+******************************************
+
+Tarlz creates safe archives that allow the reliable detection of invalid or
+corrupt metadata during decoding even when the integrity checking of lzip
+can't be used because the lzip members are only decompressed partially, as
+it happens in parallel '--diff', '--list', and '--extract'. In order to
+achieve this goal and avoid some other flaws in the pax format, tarlz makes
+some changes to the variant of the pax format that it uses. This chapter
+describes these changes and the concrete reasons to implement them.
+
+6.1 Add a CRC of the extended records
+=====================================
+
+The POSIX pax format has a serious flaw. The metadata stored in pax extended
+records are not protected by any kind of check sequence. Corruption in a
+long file name may cause the extraction of the file in the wrong place
+without warning. Corruption in a large file size may cause the truncation of
+the file or the appending of garbage to the file, both followed by a
+spurious warning about a corrupt header far from the place of the undetected
+corruption.
+
+   Metadata like file name and file size must be always protected in an
+archive format because of the adverse effects of undetected corruption in
+them, potentially much worse that undetected corruption in the data. Even
+more so in the case of pax because the amount of metadata it stores is
+potentially large, making undetected corruption and archiver misbehavior
+more probable.
+
+   Headers and metadata must be protected separately from data because the
+integrity checking of lzip may not be able to detect the corruption before
+the metadata have been used, for example, to create a new file in the wrong
+place.
+
+   Because of the above, tarlz protects the extended records with a Cyclic
+Redundancy Check (CRC) in a way compatible with standard tar tools. *Note
+key_crc32::.
+
+6.2 Remove flawed backward compatibility
+========================================
+
+In order to allow the extraction of pax archives by a tar utility conforming
+to the POSIX-2:1993 standard, POSIX.1-2008 recommends selecting extended
+header field values that allow such tar to create a regular file containing
+the extended header records as data. This approach is broken because if the
+extended header is needed because of a long file name, the fields 'name'
+and 'prefix' are unable to contain the full file name. (Some tar
+implementations store the truncated name in the field 'name' alone,
+truncating the name to only 100 bytes instead of 256). Therefore the files
+corresponding to both the extended header and the overridden ustar header
+are extracted using truncated file names, perhaps overwriting existing
+files or directories. It may be a security risk to extract a file with a
+truncated file name.
+
+   To avoid this problem, tarlz writes extended headers with all fields
+zeroed except 'size' (which contains the size of the extended records),
+'chksum', 'typeflag', 'magic', and 'version'. In particular, tarlz sets the
+fields 'name' and 'prefix' to zero. This prevents old tar programs from
+extracting the extended records as a file in the wrong place. Tarlz also
+sets to zero those fields of the ustar header overridden by extended
+records. Finally, tarlz skips members with zeroed 'name' and 'prefix' when
+decoding, except when listing. This is needed to detect certain format
+violations during parallel extraction.
+
+   If an extended header is required for any reason (for example a file
+size of 8 GiB or larger, or a link name longer than 100 bytes), tarlz also
+moves the file name to the extended records to prevent a ustar tool from
+trying to extract the file or link. This also makes easier during parallel
+decoding the detection of a tar member split between two lzip members at
+the boundary between the extended header and the ustar header.
+
+6.3 As simple as possible (but not simpler)
+===========================================
+
+The tarlz format is mainly ustar. Extended pax headers are used only when
+needed because the length of a file name or link name, or the size or other
+attribute of a file exceed the limits of the ustar format. Adding 1 KiB of
+extended header and records to each member just to save subsecond
+timestamps seems wasteful for a backup format. Moreover, minimizing the
+overhead may help recovering the archive with lziprecover in case of
+corruption.
+
+   Global pax headers are tolerated, but not supported; they are parsed and
+ignored. Some operations may not behave as expected if the archive contains
+global headers.
+
+6.4 Improve reproducibility
+===========================
+
+Pax includes by default the process ID of the pax process in the ustar name
+of the extended headers, making the archive not reproducible. Tarlz stores
+the true name of the file just once, either in the ustar header or in the
+extended records, making it easier to produce reproducible archives.
+
+   Pax allows an extended record to have length x-1 or x if x is a power of
+ten; '99<97_bytes>' or '100<97_bytes>'. Tarlz minimizes the length of the
+record and always produces a length of x-1 in these cases.
+
+6.5 No data in hard links
+=========================
+
+Tarlz does not allow data in hard link members. The data (if any) must be in
+the member determining the type of the file (which can't be a link). If all
+the names of a file are stored as hard links, the type of the file is lost.
+Not allowing data in hard links also prevents invalid actions like
+extracting file data for a hard link to a symbolic link or to a directory.
+
+6.6 Avoid misconversions to/from UTF-8
+======================================
+
+There is no portable way to tell what charset a text string is coded into.
+Therefore, tarlz stores all fields representing text strings unmodified,
+without conversion to UTF-8 nor any other transformation. This prevents
+accidental double UTF-8 conversions. If the need arises this behavior will
+be adjusted with a command-line option in the future.
+
+
+File: tarlz.info,  Node: Program design,  Next: Multi-threaded decoding,  Prev: Amendments to pax format,  Up: Top
+
+7 Internal structure of tarlz
+*****************************
+
+The parts of tarlz related to sequential processing of the archive are more
+or less similar to any other tar and won't be described here. The
+interesting parts described here are those related to Multi-threaded
+processing.
+
+   The structure of the part of tarlz performing Multi-threaded archive
+creation is somewhat similar to that of plzip with the added complication
+of the solidity levels. *Note Program design: (plzip)Program design. A
+grouper thread and several worker threads are created, acting the main
+thread as muxer (multiplexer) thread. A 'packet courier' takes care of data
+transfers among threads and limits the maximum number of data blocks
+(packets) being processed simultaneously.
+
+   The grouper traverses the directory tree, groups together the metadata of
+the files to be archived in each lzip member, and distributes them to the
+workers. The workers compress the metadata received from the grouper along
+with the file data read from the file system. The muxer collects processed
+packets from the workers, and writes them to the archive.
+
+.--------.
+|    data|---> to each worker below
+|        |                    .------------.
+| file   |                ,-->| worker   0 |--,
+| system |                |   `------------'  |
+|        |    .---------. |   .------------.  |   .-------.   .---------.
+|metadata|--->| grouper |-+-->| worker   1 |--+-->| muxer |-->| archive |
+`--------'    `---------' |   `------------'  |   `-------'   `---------'
+                          |        ...        |
+                          |   .------------.  |
+                          `-->| worker N-1 |--'
+                              `------------'
+
+   Decoding an archive is somewhat similar to how plzip decompresses a
+regular file to standard output, with the differences that it is not the
+data but only messages what is written to stdout/stderr, and that each
+worker may access files in the file system either to read them (diff) or
+write them (extract). As in plzip, each worker reads members directly from
+the archive.
+
+.--------.
+| file   |<---> data to/from each worker below
+| system |
+`--------'      .------------.
+            ,-->| worker   0 |--,
+            |   `------------'  |
+.---------. |   .------------.  |   .-------.   .--------.
+| archive |-+-->| worker   1 |--+-->| muxer |-->| stdout |
+`---------' |   `------------'  |   `-------'   | stderr |
+            |        ...        |               `--------'
+            |   .------------.  |
+            `-->| worker N-1 |--'
+                `------------'
+
+   As misaligned tar.lz archives can't be decoded in parallel, and the
+misalignment can't be detected until after decoding has started, a
+'mastership request' mechanism has been designed that allows the decoding to
+continue instead of exiting with an error.
+
+   During parallel decoding, if a worker finds a misalignment, it requests
+mastership to decode the rest of the archive. When mastership is requested,
+an error_member_id is set, and all subsequently received packets with
+member_id > error_member_id are rejected. All workers requesting mastership
+are blocked at the request_mastership call until mastership is granted.
+Mastership is granted to the delivering worker when its queue is empty to
+make sure that all preceding packets have been processed. When mastership is
+granted, all packets are deleted and all subsequently received packets not
+coming from the master are rejected.
+
+   If a worker can't continue decoding for any cause (for example lack of
+memory or finding a split tar member at the beginning of a lzip member), it
+requests mastership to print an error and terminate the program. Only if
+some other worker requests mastership in a previous lzip member can this
+error be avoided.
+
+
+File: tarlz.info,  Node: Multi-threaded decoding,  Next: Minimum archive sizes,  Prev: Program design,  Up: Top
+
+8 Limitations of parallel tar decoding
+**************************************
+
+Safely decoding a tar archive in parallel is only possible if one decodes
+the headers sequentially first. For example, if a tar archive containing
+another tar archive is decoded starting from some position other than the
+beginning, there is no way to know if the first header found there belongs
+to the outer tar archive or to the inner tar archive. Tar is a format
+inherently serial; it was designed for tapes.
+
+   The pax format is even more serial than the ustar format. Two headers
+need to be decoded sequentially for each file. The extended header may even
+need parsing to reveal something as basic as file size. If a thread decodes
+the ustar header skipping the preceding extended header, it may extract a
+file of incorrect size at the wrong place. Moreover, a pax archive with
+global headers can't be decoded in parallel because each thread can't know
+about the global headers decoded by other threads.
+
+   In the case of compressed tar archives, the start of each compressed
+block determines one point through which the tar archive can be decoded in
+parallel. Therefore, in tar.lz archives the decoding operations can't be
+parallelized if the tar members are not aligned with the lzip members. Tar
+archives compressed with plzip can't be decoded in parallel because tar and
+plzip do not have a way to align both sets of members. Certainly one can
+decompress one such archive with a multi-threaded tool like plzip, but the
+increase in speed is not as large as it could be because plzip must
+serialize the decompressed data and pass them to tar, which decodes them
+sequentially, one tar member at a time.
+
+   On the other hand, if the tar.lz archive is created with a tool like
+tarlz, which can guarantee the alignment between tar members and lzip
+members because it controls both archiving and compression, then the lzip
+format becomes an indexed layer on top of the tar archive which makes
+possible decoding it safely in parallel.
+
+   Tarlz is able to automatically decode aligned and unaligned multimember
+tar.lz archives, keeping backwards compatibility. If tarlz finds a member
+misalignment during multi-threaded decoding, it switches to single-threaded
+mode and continues decoding the archive.
+
+   If the files in the archive are large, multi-threaded '--list' on a
+regular (seekable) tar.lz archive can be hundreds of times faster than
+sequential '--list' because, in addition to using several processors, it
+only needs to decompress part of each lzip member. See the following
+example listing the Silesia corpus on a dual core machine:
+
+     tarlz -9 --no-solid -cf silesia.tar.lz silesia
+     time lzip -cd silesia.tar.lz | tar -tf -            (5.032s)
+     time plzip -cd silesia.tar.lz | tar -tf -           (3.256s)
+     time tarlz -tf silesia.tar.lz                       (0.020s)
+
+   On the other hand, multi-threaded '--list' won't detect corruption in
+the tar member data because it only decodes the part of each lzip member
+corresponding to the tar member header. This is another reason why the tar
+headers must provide their own integrity checking.
+
+8.1 Limitations of multi-threaded extraction
+============================================
+
+Multi-threaded extraction may produce different output than single-threaded
+extraction in some cases:
+
+   During multi-threaded extraction, several independent threads are
+simultaneously reading the archive and creating files in the file system.
+The archive is not read sequentially. As a consequence, any error or
+weirdness in the archive (like a corrupt member or an end-of-archive block
+in the middle of the archive) won't be usually detected until part of the
+archive beyond that point has been processed.
+
+   If the archive contains two or more tar members with the same name,
+single-threaded extraction extracts the members in the order they appear in
+the archive and leaves in the file system the last version of the file. But
+multi-threaded extraction may extract the members in any order and leave in
+the file system any version of the file nondeterministically. It is
+unspecified which of the tar members is extracted.
+
+   If the same file is extracted through several paths (different member
+names resolve to the same file in the file system), the result is undefined.
+(Probably the resulting file will be mangled).
+
+   Extraction of a hard link may fail if it is extracted before the file it
+links to.
+
+
+File: tarlz.info,  Node: Minimum archive sizes,  Next: Examples,  Prev: Multi-threaded decoding,  Up: Top
+
+9 Minimum archive sizes required for multi-threaded block compression
+*********************************************************************
+
+When creating or appending to a compressed archive using multi-threaded
+block compression, tarlz puts tar members together in blocks and compresses
+as many blocks simultaneously as worker threads are chosen, creating a
+multimember compressed archive.
+
+   For this to work as expected (and roughly multiply the compression speed
+by the number of available processors), the uncompressed archive must be at
+least as large as the number of worker threads times the block size (*note
+--data-size::). Else some processors do not get any data to compress, and
+compression is proportionally slower. The maximum speed increase achievable
+on a given archive is limited by the ratio (uncompressed_size / data_size).
+For example, a tarball the size of gcc or linux scales up to 10 or 14
+processors at level -9.
+
+   The following table shows the minimum uncompressed archive size needed
+for full use of N processors at a given compression level, using the default
+data size for each level:
+
+Processors   2         4         8         16        64        256
+------------------------------------------------------------------
+Level                                                          
+-0           2 MiB     4 MiB     8 MiB     16 MiB    64 MiB    256 MiB
+-1           4 MiB     8 MiB     16 MiB    32 MiB    128 MiB   512 MiB
+-2           6 MiB     12 MiB    24 MiB    48 MiB    192 MiB   768 MiB
+-3           8 MiB     16 MiB    32 MiB    64 MiB    256 MiB   1 GiB
+-4           12 MiB    24 MiB    48 MiB    96 MiB    384 MiB   1.5 GiB
+-5           16 MiB    32 MiB    64 MiB    128 MiB   512 MiB   2 GiB
+-6           32 MiB    64 MiB    128 MiB   256 MiB   1 GiB     4 GiB
+-7           64 MiB    128 MiB   256 MiB   512 MiB   2 GiB     8 GiB
+-8           96 MiB    192 MiB   384 MiB   768 MiB   3 GiB     12 GiB
+-9           128 MiB   256 MiB   512 MiB   1 GiB     4 GiB     16 GiB
+
+
+File: tarlz.info,  Node: Examples,  Next: Problems,  Prev: Minimum archive sizes,  Up: Top
+
+10 A small tutorial with examples
+*********************************
+
+Example 1: Create a multimember compressed archive 'archive.tar.lz'
+containing files 'a', 'b' and 'c'.
+
+     tarlz -cf archive.tar.lz a b c
+
+Example 2: Append files 'd' and 'e' to the multimember compressed archive
+'archive.tar.lz'.
+
+     tarlz -rf archive.tar.lz d e
+
+Example 3: Create a solidly compressed appendable archive 'archive.tar.lz'
+containing files 'a', 'b' and 'c'. Then append files 'd' and 'e' to the
+archive.
+
+     tarlz --asolid -cf archive.tar.lz a b c
+     tarlz --asolid -rf archive.tar.lz d e
+
+Example 4: Create a compressed appendable archive containing directories
+'dir1', 'dir2' and 'dir3' with a separate lzip member per directory. Then
+append files 'a', 'b', 'c', 'd' and 'e' to the archive, all of them
+contained in a single lzip member. The resulting archive 'archive.tar.lz'
+contains 5 lzip members (including the end-of-archive member).
+
+     tarlz --dsolid -cf archive.tar.lz dir1 dir2 dir3
+     tarlz --asolid -rf archive.tar.lz a b c d e
+
+Example 5: Create a solidly compressed archive 'archive.tar.lz' containing
+files 'a', 'b' and 'c'. Note that no more files can be later appended to
+the archive.
+
+     tarlz --solid -cf archive.tar.lz a b c
+
+Example 6: Extract all files from archive 'archive.tar.lz'.
+
+     tarlz -xf archive.tar.lz
+
+Example 7: Extract files 'a' and 'c', and the whole tree under directory
+'dir1' from archive 'archive.tar.lz'.
+
+     tarlz -xf archive.tar.lz a c dir1
+
+Example 8: Copy the contents of directory 'sourcedir' to the directory
+'destdir'.
+
+     tarlz -C sourcedir --uncompressed -cf - . | tarlz -C destdir -xf -
+
+Example 9: Compress the existing POSIX archive 'archive.tar' and write the
+output to 'archive.tar.lz'. Compress each member individually for maximum
+availability. (If one member in the compressed archive gets damaged, the
+other members can still be extracted).
+
+     tarlz -z --no-solid archive.tar
+
+Example 10: Compress the archive 'archive.tar' and write the output to
+'foo.tar.lz'.
+
+     tarlz -z -o foo.tar.lz archive.tar
+
+Example 11: Concatenate and compress two archives 'archive1.tar' and
+'archive2.tar', and write the output to 'foo.tar.lz'.
+
+     tarlz -A archive1.tar archive2.tar | tarlz -z -o foo.tar.lz
+
+
+File: tarlz.info,  Node: Problems,  Next: Concept index,  Prev: Examples,  Up: Top
+
+11 Reporting bugs
+*****************
+
+There are probably bugs in tarlz. There are certainly errors and omissions
+in this manual. If you report them, they will get fixed. If you don't, no
+one will ever know about them and they will remain unfixed for all
+eternity, if not longer.
+
+   If you find a bug in tarlz, please send electronic mail to
+<lzip-bug@nongnu.org>. Include the version number, which you can find by
+running 'tarlz --version' and 'tarlz -v --check-lib'.
+
+
+File: tarlz.info,  Node: Concept index,  Prev: Problems,  Up: Top
+
+Concept index
+*************
+
+ [index ]
+* Menu:
+
+* Amendments to pax format:              Amendments to pax format.  (line 6)
+* argument syntax:                       Argument syntax.           (line 6)
+* bugs:                                  Problems.                  (line 6)
+* examples:                              Examples.                  (line 6)
+* file format:                           File format.               (line 6)
+* getting help:                          Problems.                  (line 6)
+* introduction:                          Introduction.              (line 6)
+* invoking:                              Invoking tarlz.            (line 6)
+* minimum archive sizes:                 Minimum archive sizes.     (line 6)
+* options:                               Invoking tarlz.            (line 6)
+* parallel tar decoding:                 Multi-threaded decoding.   (line 6)
+* portable character set:                Portable character set.    (line 6)
+* program design:                        Program design.            (line 6)
+* usage:                                 Invoking tarlz.            (line 6)
+* version:                               Invoking tarlz.            (line 6)
+
+
+
+Tag Table:
+Node: Top216
+Node: Introduction1281
+Node: Invoking tarlz4106
+Ref: --data-size13109
+Ref: --bsolid17626
+Node: Argument syntax23539
+Node: Portable character set25314
+Node: File format25958
+Ref: key_crc3233001
+Ref: ustar-uid-gid36305
+Ref: ustar-mtime37112
+Node: Amendments to pax format39115
+Ref: crc3239823
+Ref: flawed-compat41134
+Node: Program design45211
+Node: Multi-threaded decoding49138
+Ref: mt-extraction52407
+Node: Minimum archive sizes53713
+Node: Examples55840
+Node: Problems58199
+Node: Concept index58754
+
+End Tag Table
+
+
+Local Variables:
+coding: iso-8859-15
+End:

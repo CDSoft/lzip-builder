@@ -1,0 +1,248 @@
+2024-12-07  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.26 released.
+	* decode.cc (decode), delete.cc (delete_members):
+	  Return 2 if any empty lzip member is found in a multimember archive.
+	* create_lz.cc, decode_lz.cc:
+	  Change 'deliver_packet' to 'deliver_packets'.
+	* create.cc (copy_file): Show file name if read error.
+	* tarlz.texi: New chapter 'Syntax of command-line arguments'.
+	* check.sh: Use 'cp' instead of 'cat'.
+	  Skip time stamps out of range or not recognized by system tools.
+	  (Reported by J Dean).
+
+2024-01-03  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.25 released.
+	* New option '--ignore-metadata'.
+	* create.cc, decode.cc, decode_lz.cc:
+	  '#include <sys/types.h>' for major, minor, makedev on BSD systems.
+	* compress.cc: Reformat file diagnostics as 'PROGRAM: FILE: MESSAGE'.
+	  (compress_archive): Create missing intermediate directories.
+	* configure, Makefile.in: New variable 'MAKEINFO'.
+
+2023-09-20  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.24 released.
+	* decode.cc (decode), common_decode.cc (check_skip_filename):
+	  Make option '-C' position-dependent also for diff and extract.
+	  (Reported by Devon Sean McCullough).
+	* create.cc (encode): Deduct '--uncompressed' from archive name ext.
+	* compress.cc (show_atpos_error): New function showing errno msg.
+	  (compress_archive): Exit with error status 2 if archive is empty.
+	* Limit the size of a header set (extended+ustar) to INT_MAX.
+	* check.sh: Fix '--diff' test on OS/2 again. (Reported by Elbert Pol).
+
+2022-09-23  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.23 released.
+	* Create and decode the extended records 'atime' and 'mtime'.
+	* Create and decode the extended records 'uid' and 'gid'.
+	* New option '--ignore-overflow'.
+	* Refuse to read/write archive data from/to a terminal.
+	  (Reported by DustDFG).
+	* main.cc (parse_mtime): Make time of day 'HH:MM:SS' optional.
+	  Accept both space and 'T' as separator between date and time.
+	  (show_option_error): New function showing argument and option name.
+	* decode.cc (extract_member): Diagnose intermediate directory failure.
+	  Failure to extract a member is no longer fatal.
+	* decode_lz.cc: Make diagnostics identical to serial decoder.
+	* common_decode.cc (format_member_name): Improve column alignment.
+	* create.cc (fill_headers): Improve diagnostic when stat reports a
+	  wrong st_size for a symbolic link. (Reported by Jason Lenz).
+	  Change diagnostic "File is the archive" to "Archive can't contain
+	  itself" following a similar change made by Paul Eggert to GNU tar.
+	* Don't show "Removing leading '/' from member names." if excluded.
+	* tarlz.texi: Change GNU Texinfo category from 'Data Compression'
+	  to 'Archiving' to match that of GNU tar.
+	  Use 'end-of-archive' (EOA) instead of 'end-of-file' (EOF).
+	* main.cc (show_help), tarlz.texi: List operations before options.
+	* Many small improvements have been made to code and documentation.
+
+2022-01-05  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.22 released.
+	* main.cc (getnum): Show option name and valid range if error.
+	  (check_lib): Check that LZ_API_VERSION and LZ_version_string match.
+	  (main): Report an error if -o is used with any operation except -z.
+	* configure: Set variable LIBS.
+
+2021-06-14  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.21 released.
+	* Lzlib 1.12 or newer is now required.
+	* decode.cc (decode): Skip members without name except when listing.
+	  decode_lz.cc (dworker): Likewise. (Reported by Florian Schmaus).
+	* New options '-z, --compress' and '-o, --output'.
+	* New option '--warn-newer'.
+	* tarlz.texi (Invoking tarlz): Document concatenation to stdout.
+	* check.sh: Fix the '--diff' test on OS/2. (Reported by Elbert Pol).
+
+2021-01-08  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.19 released.
+	* extended.cc: Print a diagnostic for each unknown keyword found.
+	* tarlz.h: Add a missing '#include <sys/types.h>' for 'mode_t'.
+
+2020-11-21  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.18 released.
+	* New option '--check-lib'.
+	* Implement multi-threaded '-x, --extract'.
+	* Don't #include <sys/sysmacros.h> when compiling on OS2.
+	* delete.cc, delete_lz.cc: Use Archive_reader.
+	* extract.cc: Rename to decode.cc.
+	* tarlz.texi: New section 'Limitations of multi-threaded extraction'.
+
+2020-07-30  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.17 released.
+	* New option '--mtime'.
+	* New option '-p, --preserve-permissions'.
+	* Implement multi-threaded '-d, --diff'.
+	* list_lz.cc: Rename to decode_lz.cc.
+	* main.cc (main): Report an error if a file name is empty or if the
+	  archive is specified more than once.
+	* lzip_index.cc: Improve messages for corruption in last header.
+	* Don't #include <sys/sysmacros.h> when compiling on BSD.
+	* tarlz.texi: New chapter 'Internal structure of tarlz'.
+
+2019-10-08  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.16 released.
+	* extract.cc (extract_member): Fix call order of chown, chmod.
+	* delete_lz.cc (delete_members_lz): Return 2 if collective member.
+	* main.cc: Set a valid invocation_name even if argc == 0.
+	* #include <sys/sysmacros.h> unconditionally.
+	* tarlz.texi: New chapter 'Portable character set'.
+
+2019-04-11  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.15 released.
+	* New option '--delete' (from uncompressed and --no-solid archives).
+	* list_lz.cc: Fix MT listing of archives with format violations.
+
+2019-03-12  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.14 released.
+	* New option '--exclude'.
+	* New option '-h, --dereference'.
+	* Short option name '-h' no longer means '--help'.
+	* create.cc: Implement '-A, --concatenate' and '-r, --append' to
+	  uncompressed archives and to standard output.
+	* main.cc: Port option '--out-slots' from plzip.
+
+2019-02-27  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.13 released.
+	* create_lz.cc (cworker): Fix skipping of unreadable files.
+	* list_lz.cc: Fix listing of archives containing empty lzip members.
+	* create.cc (fill_headers): Store negative mtime as cero.
+
+2019-02-22  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.12 released.
+	* create.cc (fill_headers): Fix use of st_rdev instead of st_dev.
+	* Save just numerical uid/gid if user or group not in database.
+	* extract.cc (format_member_name): Print devmajor and devminor.
+	* New option '-d, --diff'.
+	* New option '--ignore-ids'.
+	* extract.cc: Fast '-t, --list' on seekable uncompressed archives.
+
+2019-02-13  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.11 released.
+	* extract.cc (archive_read): Fix endless loop with empty lz file.
+	* Implement multi-threaded '-c, --create' and '-r, --append'.
+	* '--bsolid' is now the default compression granularity.
+	* create.cc (remove_leading_dotslash): Remember more than one prefix.
+	* tarlz.texi: New chapter 'Minimum archive sizes'.
+
+2019-01-31  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.10 released.
+	* New option '--bsolid'.
+	* New option '-B, --data-size'.
+	* create.cc: Set ustar name to zero if extended header is used.
+
+2019-01-22  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.9 released.
+	* Implement multi-threaded '-t, --list'.
+	* New option '-n, --threads'.
+	* Recognize global pax headers. Ignore them for now.
+	* strtoul has been replaced with length-safe parsers.
+	* tarlz.texi: New chapter 'Limitations of parallel tar decoding'.
+
+2018-12-16  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.8 released.
+	* New option '--anonymous' (--owner=root --group=root).
+	* extract.cc (decode): 'tarlz -xf foo ./bar' now extracts 'bar'.
+	* create.cc: Set to zero most fields in extended headers.
+	* tarlz.texi: New chapter 'Amendments to pax format'.
+
+2018-11-23  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.7 released.
+	* New option '--keep-damaged'.
+	* New option '--no-solid'.
+	* create.cc (archive_write): Minimize dictionary size.
+	  Detect and skip archive in '-A', '-c', and '-r'.
+	* main.cc (show_version): Show the version of lzlib being used.
+
+2018-10-19  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.6 released.
+	* New option '-A, --concatenate'.
+	* Option '--ignore-crc' replaced with '--missing-crc'.
+	* create.cc (add_member): Check that uid, gid, mtime, devmajor,
+	  and devminor are in ustar range.
+	* configure: Accept appending to CXXFLAGS; 'CXXFLAGS+=OPTIONS'.
+	* Makefile.in: Use tarlz in target 'dist'.
+
+2018-09-29  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.5 released.
+	* Implement simplified POSIX pax format.
+	* Implement CRC32-C (Castagnoli) of the extended header data.
+	* New option '--ignore-crc'.
+	* Add missing #includes for major, minor and makedev.
+	* tarlz.texi: Document the new archive format.
+
+2018-04-23  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.4 released.
+	* Add some missing #includes.
+	* main.cc (main): Open files in binary mode on OS2.
+
+2018-03-19  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.3 released.
+	* Rename project to 'tarlz' from 'pmtar' (Poor Man's Tar).
+	* New option '-C, --directory'.
+	* Implement lzip compression of members at archive creation.
+	* New option '-r, --append'.
+	* New options '--owner' and '--group'.
+	* New options '--asolid', '--dsolid', and '--solid'.
+	* Implement file appending to compressed archive.
+	* Implement transparent decompression of the archive.
+	* Implement skipping over damaged (un)compressed members.
+	* Implement recursive extraction/listing of directories.
+	* Implement verbose extract/list output.
+	* tarlz.texi: New file.
+
+2014-01-22  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.2 released.
+	* configure: Options now accept a separate argument.
+
+2013-02-16  Antonio Diaz Diaz  <ant_diaz@teleline.es>
+
+	* Version 0.1 released.
+
+
+Copyright (C) 2013-2024 Antonio Diaz Diaz.
+
+This file is a collection of facts, and thus it is not copyrightable, but just
+in case, you have unlimited permission to copy, distribute, and modify it.

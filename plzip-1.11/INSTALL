@@ -1,0 +1,92 @@
+Requirements
+------------
+You will need a C++98 compiler with support for 'long long', and the
+compression library lzlib installed. (gcc 3.3.6 or newer is recommended).
+I use gcc 6.1.0 and 3.3.6, but the code should compile with any standards
+compliant compiler.
+Gcc is available at http://gcc.gnu.org.
+Lzlib is available at http://www.nongnu.org/lzip/lzlib.html.
+
+Lzlib must be version 1.0 or newer, but the fast encoder requires lzlib 1.7
+or newer, the Hamming distance (HD) = 3 detection of corrupt headers in
+non-seekable multimember files requires lzlib 1.10 or newer, and the
+'no copy' optimization for testing requires lzlib 1.12 or newer.
+
+The operating system must allow signal handlers read access to objects with
+static storage duration so that the cleanup handler for Control-C can delete
+the partial output file.
+
+
+Procedure
+---------
+1. Unpack the archive if you have not done so already:
+
+	tar -xf plzip[version].tar.lz
+or
+	lzip -cd plzip[version].tar.lz | tar -xf -
+
+This creates the directory ./plzip[version] containing the source code
+extracted from the archive.
+
+2. Change to plzip directory and run configure.
+   (Try 'configure --help' for usage instructions).
+
+	cd plzip[version]
+	./configure
+
+   To link against a lzlib not installed in a standard place, use:
+
+	./configure CPPFLAGS='-I <includedir>' LDFLAGS='-L <libdir>'
+
+   (Replace <includedir> with the directory containing the file lzlib.h,
+            and <libdir> with the directory containing the file liblz.a).
+
+   If you are compiling on MinGW, use --with-mingw (note that the Windows
+   I/O functions used with MinGW are not guaranteed to be thread safe):
+
+	./configure --with-mingw CXXFLAGS+='-D __USE_MINGW_ANSI_STDIO'
+
+3. Run make.
+
+	make
+
+4. Optionally, type 'make check' to run the tests that come with plzip.
+
+5. Type 'make install' to install the program and any data files and
+   documentation. You need root privileges to install into a prefix owned
+   by root.
+
+   Or type 'make install-compress', which additionally compresses the
+   info manual and the man page after installation.
+   (Installing compressed docs may become the default in the future).
+
+   You can install only the program, the info manual, or the man page by
+   typing 'make install-bin', 'make install-info', or 'make install-man'
+   respectively.
+
+   Instead of 'make install', you can type 'make install-as-lzip' to
+   install the program and any data files and documentation, and link
+   the program to the name 'lzip'.
+
+
+Another way
+-----------
+You can also compile plzip into a separate directory.
+To do this, you must use a version of 'make' that supports the variable
+'VPATH', such as GNU 'make'. 'cd' to the directory where you want the
+object files and executables to go and run the 'configure' script.
+'configure' automatically checks for the source code in '.', in '..', and
+in the directory that 'configure' is in.
+
+'configure' recognizes the option '--srcdir=DIR' to control where to look
+for the source code. Usually 'configure' can determine that directory
+automatically.
+
+After running 'configure', you can run 'make' and 'make install' as
+explained above.
+
+
+Copyright (C) 2009-2024 Antonio Diaz Diaz.
+
+This file is free documentation: you have unlimited permission to copy,
+distribute, and modify it.

@@ -1,0 +1,180 @@
+
+DISTNAME = $(pkgname)-$(pkgversion)
+INSTALL = install
+INSTALL_PROGRAM = $(INSTALL) -m 755
+INSTALL_DIR = $(INSTALL) -d -m 755
+INSTALL_DATA = $(INSTALL) -m 644
+SHELL = /bin/sh
+CAN_RUN_INSTALLINFO = $(SHELL) -c "install-info --version" > /dev/null 2>&1
+
+objs = arg_parser.o lzip_index.o archive_reader.o common.o common_decode.o \
+       common_mutex.o compress.o create.o create_lz.o decode.o decode_lz.o \
+       delete.o delete_lz.o exclude.o extended.o main.o
+
+
+.PHONY : all install install-bin install-info install-man \
+         install-strip install-compress install-strip-compress \
+         install-bin-strip install-info-compress install-man-compress \
+         uninstall uninstall-bin uninstall-info uninstall-man \
+         doc info man check dist clean distclean
+
+all : $(progname)
+
+$(progname) : $(objs)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(objs) $(LIBS)
+
+main.o : main.cc
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
+
+%.o : %.cc
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
+# prevent 'make' from trying to remake source files
+$(VPATH)/configure $(VPATH)/Makefile.in $(VPATH)/doc/$(pkgname).texi : ;
+MAKEFLAGS += -r
+.SUFFIXES :
+
+$(objs)          : Makefile
+arg_parser.o     : arg_parser.h
+archive_reader.o : tarlz.h lzip_index.h archive_reader.h
+common.o         : tarlz.h
+common_decode.o  : tarlz.h arg_parser.h decode.h
+common_mutex.o   : common_mutex.h
+compress.o       : tarlz.h arg_parser.h
+create.o         : tarlz.h arg_parser.h create.h
+create_lz.o      : tarlz.h arg_parser.h common_mutex.h create.h
+decode.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h decode.h
+decode_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h \
+                   common_mutex.h decode.h
+delete.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h
+delete_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h
+exclude.o        : tarlz.h
+extended.o       : tarlz.h
+lzip_index.o     : tarlz.h lzip_index.h
+main.o           : tarlz.h arg_parser.h
+
+doc : info man
+
+info : $(VPATH)/doc/$(pkgname).info
+
+$(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texi
+	cd $(VPATH)/doc && $(MAKEINFO) $(pkgname).texi
+
+man : $(VPATH)/doc/$(progname).1
+
+$(VPATH)/doc/$(progname).1 : $(progname)
+	help2man -n 'creates tar archives with multimember lzip compression' \
+	  -o $@ ./$(progname)
+
+Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
+	./config.status
+
+check : all
+	@$(VPATH)/testsuite/check.sh $(VPATH)/testsuite $(pkgversion)
+
+install : install-bin install-info install-man
+install-strip : install-bin-strip install-info install-man
+install-compress : install-bin install-info-compress install-man-compress
+install-strip-compress : install-bin-strip install-info-compress install-man-compress
+
+install-bin : all
+	if [ ! -d "$(DESTDIR)$(bindir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(bindir)" ; fi
+	$(INSTALL_PROGRAM) ./$(progname) "$(DESTDIR)$(bindir)/$(progname)"
+
+install-bin-strip : all
+	$(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s' install-bin
+
+install-info :
+	if [ ! -d "$(DESTDIR)$(infodir)" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(infodir)" ; fi
+	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
+	$(INSTALL_DATA) $(VPATH)/doc/$(pkgname).info "$(DESTDIR)$(infodir)/$(pkgname).info"
+	-if $(CAN_RUN_INSTALLINFO) ; then \
+	  install-info --info-dir="$(DESTDIR)$(infodir)" "$(DESTDIR)$(infodir)/$(pkgname).info" ; \
+	fi
+
+install-info-compress : install-info
+	lzip -v -9 "$(DESTDIR)$(infodir)/$(pkgname).info"
+
+install-man :
+	if [ ! -d "$(DESTDIR)$(mandir)/man1" ] ; then $(INSTALL_DIR) "$(DESTDIR)$(mandir)/man1" ; fi
+	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"*
+	$(INSTALL_DATA) $(VPATH)/doc/$(progname).1 "$(DESTDIR)$(mandir)/man1/$(progname).1"
+
+install-man-compress : install-man
+	lzip -v -9 "$(DESTDIR)$(mandir)/man1/$(progname).1"
+
+uninstall : uninstall-man uninstall-info uninstall-bin
+
+uninstall-bin :
+	-rm -f "$(DESTDIR)$(bindir)/$(progname)"
+
+uninstall-info :
+	-if $(CAN_RUN_INSTALLINFO) ; then \
+	  install-info --info-dir="$(DESTDIR)$(infodir)" --remove "$(DESTDIR)$(infodir)/$(pkgname).info" ; \
+	fi
+	-rm -f "$(DESTDIR)$(infodir)/$(pkgname).info"*
+
+uninstall-man :
+	-rm -f "$(DESTDIR)$(mandir)/man1/$(progname).1"*
+
+dist : doc
+	ln -sf $(VPATH) $(DISTNAME)
+	tarlz --solid --anonymous -9cvf $(DISTNAME).tar.lz \
+	  $(DISTNAME)/AUTHORS \
+	  $(DISTNAME)/COPYING \
+	  $(DISTNAME)/ChangeLog \
+	  $(DISTNAME)/INSTALL \
+	  $(DISTNAME)/Makefile.in \
+	  $(DISTNAME)/NEWS \
+	  $(DISTNAME)/README \
+	  $(DISTNAME)/configure \
+	  $(DISTNAME)/doc/$(progname).1 \
+	  $(DISTNAME)/doc/$(pkgname).info \
+	  $(DISTNAME)/doc/$(pkgname).texi \
+	  $(DISTNAME)/*.h \
+	  $(DISTNAME)/*.cc \
+	  $(DISTNAME)/testsuite/check.sh \
+	  $(DISTNAME)/testsuite/test.txt \
+	  $(DISTNAME)/testsuite/test.txt.tar \
+	  $(DISTNAME)/testsuite/test_bad1.txt.tar \
+	  $(DISTNAME)/testsuite/test_bad[12].txt \
+	  $(DISTNAME)/testsuite/rfoo \
+	  $(DISTNAME)/testsuite/rbar \
+	  $(DISTNAME)/testsuite/rbaz \
+	  $(DISTNAME)/testsuite/test3.tar \
+	  $(DISTNAME)/testsuite/test3_nn.tar \
+	  $(DISTNAME)/testsuite/test3_eoa[1-4].tar \
+	  $(DISTNAME)/testsuite/test3_gh[1-4].tar \
+	  $(DISTNAME)/testsuite/test3_bad[1-5].tar \
+	  $(DISTNAME)/testsuite/test3_dir.tar \
+	  $(DISTNAME)/testsuite/t155.tar \
+	  $(DISTNAME)/testsuite/t155_fv[1-3].tar \
+	  $(DISTNAME)/testsuite/eoa_blocks.tar \
+	  $(DISTNAME)/testsuite/em.lz \
+	  $(DISTNAME)/testsuite/test.txt.lz \
+	  $(DISTNAME)/testsuite/test.txt.tar.lz \
+	  $(DISTNAME)/testsuite/test_bad[12].txt.tar.lz \
+	  $(DISTNAME)/testsuite/test3.tar.lz \
+	  $(DISTNAME)/testsuite/test3_eoa[1-5].tar.lz \
+	  $(DISTNAME)/testsuite/test3_gh[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/test3_nn.tar.lz \
+	  $(DISTNAME)/testsuite/test3_sm[1-4].tar.lz \
+	  $(DISTNAME)/testsuite/test3_bad[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/test3_dir.tar.lz \
+	  $(DISTNAME)/testsuite/test3_dot.tar.lz \
+	  $(DISTNAME)/testsuite/tar_in_tlz[12].tar.lz \
+	  $(DISTNAME)/testsuite/tlz_in_tar[12].tar \
+	  $(DISTNAME)/testsuite/ts_in_link.tar.lz \
+	  $(DISTNAME)/testsuite/t155.tar.lz \
+	  $(DISTNAME)/testsuite/t155_fv[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/dotdot[1-5].tar.lz \
+	  $(DISTNAME)/testsuite/ug32767.tar.lz \
+	  $(DISTNAME)/testsuite/ug32chars.tar.lz \
+	  $(DISTNAME)/testsuite/eoa_blocks.tar.lz
+	rm -f $(DISTNAME)
+
+clean :
+	-rm -f $(progname) $(objs)
+
+distclean : clean
+	-rm -f Makefile config.status *.tar *.tar.lz

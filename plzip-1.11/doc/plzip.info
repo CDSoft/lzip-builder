@@ -1,0 +1,833 @@
+This is plzip.info, produced by makeinfo version 4.13+ from plzip.texi.
+
+INFO-DIR-SECTION Compression
+START-INFO-DIR-ENTRY
+* Plzip: (plzip).               Massively parallel implementation of lzip
+END-INFO-DIR-ENTRY
+
+
+File: plzip.info,  Node: Top,  Next: Introduction,  Up: (dir)
+
+Plzip Manual
+************
+
+This manual is for Plzip (version 1.11, 21 January 2024).
+
+* Menu:
+
+* Introduction::           Purpose and features of plzip
+* Output::                 Meaning of plzip's output
+* Invoking plzip::         Command-line interface
+* Program design::         Internal structure of plzip
+* Memory requirements::    Memory required to compress and decompress
+* Minimum file sizes::     Minimum file sizes required for full speed
+* File format::            Detailed format of the compressed file
+* Trailing data::          Extra data appended to the file
+* Examples::               A small tutorial with examples
+* Problems::               Reporting bugs
+* Concept index::          Index of concepts
+
+
+   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+
+   This manual is free documentation: you have unlimited permission to copy,
+distribute, and modify it.
+
+
+File: plzip.info,  Node: Introduction,  Next: Output,  Prev: Top,  Up: Top
+
+1 Introduction
+**************
+
+Plzip is a massively parallel (multi-threaded) implementation of lzip,
+compatible with lzip 1.4 or newer. Plzip uses the compression library lzlib.
+
+   Lzip is a lossless data compressor with a user interface similar to the
+one of gzip or bzip2. Lzip uses a simplified form of the 'Lempel-Ziv-Markov
+chain-Algorithm' (LZMA) stream format to maximize interoperability. The
+maximum dictionary size is 512 MiB so that any lzip file can be decompressed
+on 32-bit machines. Lzip provides accurate and robust 3-factor integrity
+checking. Lzip can compress about as fast as gzip (lzip -0) or compress most
+files more than bzip2 (lzip -9). Decompression speed is intermediate between
+gzip and bzip2. Lzip is better than gzip and bzip2 from a data recovery
+perspective. Lzip has been designed, written, and tested with great care to
+replace gzip and bzip2 as the standard general-purpose compressed format for
+Unix-like systems.
+
+   Plzip can compress/decompress large files on multiprocessor machines much
+faster than lzip, at the cost of a slightly reduced compression ratio (0.4
+to 2 percent larger compressed files). Note that the number of usable
+threads is limited by file size; on files larger than a few GB plzip can use
+hundreds of processors, but on files of only a few MB plzip is no faster
+than lzip. *Note Minimum file sizes::.
+
+   For creation and manipulation of compressed tar archives tarlz can be
+more efficient than using tar and plzip because tarlz is able to keep the
+alignment between tar members and lzip members. *Note tarlz manual:
+(tarlz)Top.
+
+   The lzip file format is designed for data sharing and long-term
+archiving, taking into account both data integrity and decoder availability:
+
+   * The lzip format provides very safe integrity checking and some data
+     recovery means. The program lziprecover can repair bit flip errors
+     (one of the most common forms of data corruption) in lzip files, and
+     provides data recovery capabilities, including error-checked merging
+     of damaged copies of a file. *Note Data safety: (lziprecover)Data
+     safety.
+
+   * The lzip format is as simple as possible (but not simpler). The lzip
+     manual provides the source code of a simple decompressor along with a
+     detailed explanation of how it works, so that with the only help of the
+     lzip manual it would be possible for a digital archaeologist to extract
+     the data from a lzip file long after quantum computers eventually
+     render LZMA obsolete.
+
+   * Additionally the lzip reference implementation is copylefted, which
+     guarantees that it will remain free forever.
+
+   A nice feature of the lzip format is that a corrupt byte is easier to
+repair the nearer it is from the beginning of the file. Therefore, with the
+help of lziprecover, losing an entire archive just because of a corrupt
+byte near the beginning is a thing of the past.
+
+   Plzip uses the same well-defined exit status values used by lzip, which
+makes it safer than compressors returning ambiguous warning values (like
+gzip) when it is used as a back end for other programs like tar or zutils.
+
+   Plzip automatically uses for each file the largest dictionary size that
+does not exceed neither the file size nor the limit given. Keep in mind
+that the decompression memory requirement is affected at compression time
+by the choice of dictionary size limit. *Note Memory requirements::.
+
+   When compressing, plzip replaces every file given in the command line
+with a compressed version of itself, with the name "original_name.lz". When
+decompressing, plzip attempts to guess the name for the decompressed file
+from that of the compressed file as follows:
+
+filename.lz    becomes   filename
+filename.tlz   becomes   filename.tar
+anyothername   becomes   anyothername.out
+
+   (De)compressing a file is much like copying or moving it. Therefore plzip
+preserves the access and modification dates, permissions, and, if you have
+appropriate privileges, ownership of the file just as 'cp -p' does. (If the
+user ID or the group ID can't be duplicated, the file permission bits
+S_ISUID and S_ISGID are cleared).
+
+   Plzip is able to read from some types of non-regular files if either the
+option '-c' or the option '-o' is specified.
+
+   Plzip refuses to read compressed data from a terminal or write compressed
+data to a terminal, as this would be entirely incomprehensible and might
+leave the terminal in an abnormal state.
+
+   Plzip correctly decompresses a file which is the concatenation of two or
+more compressed files. The result is the concatenation of the corresponding
+decompressed files. Integrity testing of concatenated compressed files is
+also supported.
+
+
+File: plzip.info,  Node: Output,  Next: Invoking plzip,  Prev: Introduction,  Up: Top
+
+2 Meaning of plzip's output
+***************************
+
+The output of plzip looks like this:
+
+     plzip -v foo
+       foo:  6.676:1, 14.98% ratio, 85.02% saved, 450560 in, 67493 out.
+
+     plzip -tvvv foo.lz
+       foo.lz:  6.676:1, 14.98% ratio, 85.02% saved.  450560 out,  67493 in. ok
+
+   The meaning of each field is as follows:
+
+'N:1'
+     The compression ratio (uncompressed_size / compressed_size), shown as
+     N to 1.
+
+'ratio'
+     The inverse compression ratio (compressed_size / uncompressed_size),
+     shown as a percentage. A decimal ratio is easily obtained by moving the
+     decimal point two places to the left; 14.98% = 0.1498.
+
+'saved'
+     The space saved by compression (1 - ratio), shown as a percentage.
+
+'in'
+     Size of the input data. This is the uncompressed size when
+     compressing, or the compressed size when decompressing or testing.
+     Note that plzip always prints the uncompressed size before the
+     compressed size when compressing, decompressing, testing, or listing.
+
+'out'
+     Size of the output data. This is the compressed size when compressing,
+     or the decompressed size when decompressing or testing.
+
+
+   When decompressing or testing at verbosity level 4 (-vvvv), the
+dictionary size used to compress the file is also shown.
+
+   LANGUAGE NOTE: Uncompressed = not compressed = plain data; it may never
+have been compressed. Decompressed is used to refer to data which have
+undergone the process of decompression.
+
+
+File: plzip.info,  Node: Invoking plzip,  Next: Program design,  Prev: Output,  Up: Top
+
+3 Invoking plzip
+****************
+
+The format for running plzip is:
+
+     plzip [OPTIONS] [FILES]
+
+If no file names are specified, plzip compresses (or decompresses) from
+standard input to standard output. A hyphen '-' used as a FILE argument
+means standard input. It can be mixed with other FILES and is read just
+once, the first time it appears in the command line. Remember to prepend
+'./' to any file name beginning with a hyphen, or use '--'.
+
+   plzip supports the following options: *Note Argument syntax:
+(arg_parser)Argument syntax.
+
+'-h'
+'--help'
+     Print an informative help message describing the options and exit.
+
+'-V'
+'--version'
+     Print the version number of plzip on the standard output and exit.
+     This version number should be included in all bug reports.
+
+'-a'
+'--trailing-error'
+     Exit with error status 2 if any remaining input is detected after
+     decompressing the last member. Such remaining input is usually trailing
+     garbage that can be safely ignored. *Note concat-example::.
+
+'-B BYTES'
+'--data-size=BYTES'
+     When compressing, set the size in bytes of the input data blocks. The
+     input file is divided in chunks of this size before compression is
+     performed. Valid values range from 8 KiB to 1 GiB. Default value is
+     two times the dictionary size, except for option '-0' where it
+     defaults to 1 MiB. Plzip reduces the dictionary size if it is larger
+     than the data size specified. *Note Minimum file sizes::.
+
+'-c'
+'--stdout'
+     Compress or decompress to standard output; keep input files unchanged.
+     If compressing several files, each file is compressed independently.
+     (The output consists of a sequence of independently compressed
+     members). This option (or '-o') is needed when reading from a named
+     pipe (fifo) or from a device. Use 'lziprecover -cd -i' to recover as
+     much of the decompressed data as possible when decompressing a corrupt
+     file. '-c' overrides '-o'. '-c' has no effect when testing or listing.
+
+'-d'
+'--decompress'
+     Decompress the files specified. The integrity of the files specified is
+     checked. If a file does not exist, can't be opened, or the destination
+     file already exists and '--force' has not been specified, plzip
+     continues decompressing the rest of the files and exits with error
+     status 1. If a file fails to decompress, or is a terminal, plzip exits
+     immediately with error status 2 without decompressing the rest of the
+     files. A terminal is considered an uncompressed file, and therefore
+     invalid.
+
+'-f'
+'--force'
+     Force overwrite of output files.
+
+'-F'
+'--recompress'
+     When compressing, force re-compression of files whose name already has
+     the '.lz' or '.tlz' suffix.
+
+'-k'
+'--keep'
+     Keep (don't delete) input files during compression or decompression.
+
+'-l'
+'--list'
+     Print the uncompressed size, compressed size, and percentage saved of
+     the files specified. Trailing data are ignored. The values produced
+     are correct even for multimember files. If more than one file is
+     given, a final line containing the cumulative sizes is printed. With
+     '-v', the dictionary size, the number of members in the file, and the
+     amount of trailing data (if any) are also printed. With '-vv', the
+     positions and sizes of each member in multimember files are also
+     printed.
+
+     If any file is damaged, does not exist, can't be opened, or is not
+     regular, the final exit status is > 0. '-lq' can be used to check
+     quickly (without decompressing) the structural integrity of the files
+     specified. (Use '--test' to check the data integrity). '-alq'
+     additionally checks that none of the files specified contain trailing
+     data.
+
+'-m BYTES'
+'--match-length=BYTES'
+     When compressing, set the match length limit in bytes. After a match
+     this long is found, the search is finished. Valid values range from 5
+     to 273. Larger values usually give better compression ratios but
+     longer compression times.
+
+'-n N'
+'--threads=N'
+     Set the maximum number of worker threads, overriding the system's
+     default. Valid values range from 1 to "as many as your system can
+     support". If this option is not used, plzip tries to detect the number
+     of processors in the system and use it as default value. When
+     compressing on a 32 bit system, plzip tries to limit the memory use to
+     under 2.22 GiB (4 worker threads at level -9) by reducing the number
+     of threads below the system's default. 'plzip --help' shows the
+     system's default value.
+
+     Plzip starts the number of threads required by each file without
+     exceeding the value specified. Note that the number of usable threads
+     is limited to ceil( file_size / data_size ) during compression (*note
+     Minimum file sizes::), and to the number of members in the input
+     during decompression. You can find the number of members in a lzip
+     file by running 'plzip -lv file.lz'.
+
+'-o FILE'
+'--output=FILE'
+     If '-c' has not been also specified, write the (de)compressed output
+     to FILE, automatically creating any missing parent directories; keep
+     input files unchanged. If compressing several files, each file is
+     compressed independently. (The output consists of a sequence of
+     independently compressed members). This option (or '-c') is needed
+     when reading from a named pipe (fifo) or from a device. '-o -' is
+     equivalent to '-c'. '-o' has no effect when testing or listing.
+
+     In order to keep backward compatibility with plzip versions prior to
+     1.9, when compressing from standard input and no other file names are
+     given, the extension '.lz' is appended to FILE unless it already ends
+     in '.lz' or '.tlz'. This feature will be removed in a future version
+     of plzip. Meanwhile, redirection may be used instead of '-o' to write
+     the compressed output to a file without the extension '.lz' in its
+     name: 'plzip < file > foo'.
+
+'-q'
+'--quiet'
+     Quiet operation. Suppress all messages.
+
+'-s BYTES'
+'--dictionary-size=BYTES'
+     When compressing, set the dictionary size limit in bytes. Plzip uses
+     for each file the largest dictionary size that does not exceed neither
+     the file size nor this limit. Valid values range from 4 KiB to 512 MiB.
+     Values 12 to 29 are interpreted as powers of two, meaning 2^12 to 2^29
+     bytes. Dictionary sizes are quantized so that they can be coded in
+     just one byte (*note coded-dict-size::). If the size specified does
+     not match one of the valid sizes, it is rounded upwards by adding up
+     to (BYTES / 8) to it.
+
+     For maximum compression you should use a dictionary size limit as large
+     as possible, but keep in mind that the decompression memory requirement
+     is affected at compression time by the choice of dictionary size limit.
+
+'-t'
+'--test'
+     Check integrity of the files specified, but don't decompress them. This
+     really performs a trial decompression and throws away the result. Use
+     it together with '-v' to see information about the files. If a file
+     fails the test, does not exist, can't be opened, or is a terminal,
+     plzip continues testing the rest of the files. A final diagnostic is
+     shown at verbosity level 1 or higher if any file fails the test when
+     testing multiple files.
+
+'-v'
+'--verbose'
+     Verbose mode.
+     When compressing, show the compression ratio and size for each file
+     processed.
+     When decompressing or testing, further -v's (up to 4) increase the
+     verbosity level, showing status, compression ratio, dictionary size,
+     decompressed size, and compressed size.
+     Two or more '-v' options show the progress of (de)compression, except
+     for single-member files.
+
+'-0 .. -9'
+     Compression level. Set the compression parameters (dictionary size and
+     match length limit) as shown in the table below. The default
+     compression level is '-6', equivalent to '-s8MiB -m36'. Note that '-9'
+     can be much slower than '-0'. These options have no effect when
+     decompressing, testing, or listing.
+
+     The bidimensional parameter space of LZMA can't be mapped to a linear
+     scale optimal for all files. If your files are large, very repetitive,
+     etc, you may need to use the options '--dictionary-size' and
+     '--match-length' directly to achieve optimal performance.
+
+     If several compression levels or '-s' or '-m' options are given, the
+     last setting is used. For example '-9 -s64MiB' is equivalent to
+     '-s64MiB -m273'
+
+     Level   Dictionary size (-s)   Match length limit (-m)
+     -0      64 KiB                 16 bytes
+     -1      1 MiB                  5 bytes
+     -2      1.5 MiB                6 bytes
+     -3      2 MiB                  8 bytes
+     -4      3 MiB                  12 bytes
+     -5      4 MiB                  20 bytes
+     -6      8 MiB                  36 bytes
+     -7      16 MiB                 68 bytes
+     -8      24 MiB                 132 bytes
+     -9      32 MiB                 273 bytes
+
+'--fast'
+'--best'
+     Aliases for GNU gzip compatibility.
+
+'--loose-trailing'
+     When decompressing, testing, or listing, allow trailing data whose
+     first bytes are so similar to the magic bytes of a lzip header that
+     they can be confused with a corrupt header. Use this option if a file
+     triggers a "corrupt header" error and the cause is not indeed a
+     corrupt header.
+
+'--in-slots=N'
+     Number of 1 MiB input packets buffered per worker thread when
+     decompressing from non-seekable input. Increasing the number of packets
+     may increase decompression speed, but requires more memory. Valid
+     values range from 1 to 64. The default value is 4.
+
+'--out-slots=N'
+     Number of 1 MiB output packets buffered per worker thread when
+     decompressing to non-seekable output. Increasing the number of packets
+     may increase decompression speed, but requires more memory. Valid
+     values range from 1 to 1024. The default value is 64.
+
+'--check-lib'
+     Compare the version of lzlib used to compile plzip with the version
+     actually being used at run time and exit. Report any differences
+     found. Exit with error status 1 if differences are found. A mismatch
+     may indicate that lzlib is not correctly installed or that a different
+     version of lzlib has been installed after compiling plzip. Exit with
+     error status 2 if LZ_API_VERSION and LZ_version_string don't match.
+     'plzip -v --check-lib' shows the version of lzlib being used and the
+     value of LZ_API_VERSION (if defined). *Note Library version:
+     (lzlib)Library version.
+
+
+   Numbers given as arguments to options may be expressed in decimal,
+hexadecimal, or octal (using the same syntax as integer constants in C++),
+and may be followed by a multiplier and an optional 'B' for "byte".
+
+   Table of SI and binary prefixes (unit multipliers):
+
+Prefix   Value                      |   Prefix   Value
+k        kilobyte   (10^3 = 1000)   |   Ki       kibibyte  (2^10 = 1024)
+M        megabyte   (10^6)          |   Mi       mebibyte  (2^20)
+G        gigabyte   (10^9)          |   Gi       gibibyte  (2^30)
+T        terabyte   (10^12)         |   Ti       tebibyte  (2^40)
+P        petabyte   (10^15)         |   Pi       pebibyte  (2^50)
+E        exabyte    (10^18)         |   Ei       exbibyte  (2^60)
+Z        zettabyte  (10^21)         |   Zi       zebibyte  (2^70)
+Y        yottabyte  (10^24)         |   Yi       yobibyte  (2^80)
+R        ronnabyte  (10^27)         |   Ri       robibyte  (2^90)
+Q        quettabyte (10^30)         |   Qi       quebibyte (2^100)
+
+
+   Exit status: 0 for a normal exit, 1 for environmental problems (file not
+found, invalid command-line options, I/O errors, etc), 2 to indicate a
+corrupt or invalid input file, 3 for an internal consistency error (e.g.,
+bug) which caused plzip to panic.
+
+
+File: plzip.info,  Node: Program design,  Next: Memory requirements,  Prev: Invoking plzip,  Up: Top
+
+4 Internal structure of plzip
+*****************************
+
+When compressing, plzip divides the input file into chunks and compresses as
+many chunks simultaneously as worker threads are chosen, creating a
+multimember compressed file. Each chunk is compressed in-place (using the
+same buffer for input and output), reducing the amount of RAM required.
+
+   When decompressing, plzip decompresses as many members simultaneously as
+worker threads are chosen. Files that were compressed with lzip are not
+decompressed faster than using lzip (unless the option '-b' was used)
+because lzip usually produces single-member files, which can't be
+decompressed in parallel.
+
+   For each input file, a splitter thread and several worker threads are
+created, acting the main thread as muxer (multiplexer) thread. A "packet
+courier" takes care of data transfers among threads and limits the maximum
+number of data blocks (packets) being processed simultaneously.
+
+   The splitter reads data blocks from the input file, and distributes them
+to the workers. The workers (de)compress the blocks received from the
+splitter. The muxer collects processed packets from the workers, and writes
+them to the output file.
+
+                             .------------.
+                         ,-->| worker   0 |--,
+                         |   `------------'  |
+.-------.   .----------. |   .------------.  |   .-------.   .--------.
+| input |-->| splitter |-+-->| worker   1 |--+-->| muxer |-->| output |
+| file  |   `----------' |   `------------'  |   `-------'   |  file  |
+`-------'                |        ...        |               `--------'
+                         |   .------------.  |
+                         `-->| worker N-1 |--'
+                             `------------'
+
+   When decompressing from a regular file, the splitter is removed and the
+workers read directly from the input file. If the output file is also a
+regular file, the muxer is also removed and the workers write directly to
+the output file. With these optimizations, the use of RAM is greatly
+reduced and the decompression speed of large files with many members is
+only limited by the number of processors available and by I/O speed.
+
+
+File: plzip.info,  Node: Memory requirements,  Next: Minimum file sizes,  Prev: Program design,  Up: Top
+
+5 Memory required to compress and decompress
+********************************************
+
+The amount of memory required *per worker thread* for decompression or
+testing is approximately the following:
+
+   * For decompression of a regular (seekable) file to another regular file,
+     or for testing of a regular file; the dictionary size.
+
+   * For testing of a non-seekable file or of standard input; the dictionary
+     size plus 1 MiB plus up to the number of 1 MiB input packets buffered
+     (4 by default).
+
+   * For decompression of a regular file to a non-seekable file or to
+     standard output; the dictionary size plus up to the number of 1 MiB
+     output packets buffered (64 by default).
+
+   * For decompression of a non-seekable file or of standard input; the
+     dictionary size plus 1 MiB plus up to the number of 1 MiB input and
+     output packets buffered (68 by default).
+
+The amount of memory required *per worker thread* for compression is
+approximately the following:
+
+   * For compression at level -0; 1.5 MiB plus 3.375 times the data size
+     (*note --data-size::). Default is 4.875 MiB.
+
+   * For compression at other levels; 11 times the dictionary size plus
+     3.375 times the data size. Default is 142 MiB.
+
+The following table shows the memory required *per thread* for compression
+at a given level, using the default data size for each level:
+
+Level   Memory required
+-0      4.875 MiB
+-1      17.75 MiB
+-2      26.625 MiB
+-3      35.5 MiB
+-4      53.25 MiB
+-5      71 MiB
+-6      142 MiB
+-7      284 MiB
+-8      426 MiB
+-9      568 MiB
+
+
+File: plzip.info,  Node: Minimum file sizes,  Next: File format,  Prev: Memory requirements,  Up: Top
+
+6 Minimum file sizes required for full compression speed
+********************************************************
+
+When compressing, plzip divides the input file into chunks and compresses
+as many chunks simultaneously as worker threads are chosen, creating a
+multimember compressed file.
+
+   For this to work as expected (and roughly multiply the compression speed
+by the number of available processors), the uncompressed file must be at
+least as large as the number of worker threads times the chunk size (*note
+--data-size::). Else some processors do not get any data to compress, and
+compression is proportionally slower. The maximum speed increase achievable
+on a given file is limited by the ratio (file_size / data_size). For
+example, a tarball the size of gcc or linux scales up to 10 or 14
+processors at level -9.
+
+   The following table shows the minimum uncompressed file size needed for
+full use of N processors at a given compression level, using the default
+data size for each level:
+
+Processors   2         4         8         16        64        256
+------------------------------------------------------------------
+Level                                                          
+-0           2 MiB     4 MiB     8 MiB     16 MiB    64 MiB    256 MiB
+-1           4 MiB     8 MiB     16 MiB    32 MiB    128 MiB   512 MiB
+-2           6 MiB     12 MiB    24 MiB    48 MiB    192 MiB   768 MiB
+-3           8 MiB     16 MiB    32 MiB    64 MiB    256 MiB   1 GiB
+-4           12 MiB    24 MiB    48 MiB    96 MiB    384 MiB   1.5 GiB
+-5           16 MiB    32 MiB    64 MiB    128 MiB   512 MiB   2 GiB
+-6           32 MiB    64 MiB    128 MiB   256 MiB   1 GiB     4 GiB
+-7           64 MiB    128 MiB   256 MiB   512 MiB   2 GiB     8 GiB
+-8           96 MiB    192 MiB   384 MiB   768 MiB   3 GiB     12 GiB
+-9           128 MiB   256 MiB   512 MiB   1 GiB     4 GiB     16 GiB
+
+
+File: plzip.info,  Node: File format,  Next: Trailing data,  Prev: Minimum file sizes,  Up: Top
+
+7 File format
+*************
+
+Perfection is reached, not when there is no longer anything to add, but
+when there is no longer anything to take away.
+-- Antoine de Saint-Exupery
+
+
+   In the diagram below, a box like this:
+
++---+
+|   | <-- the vertical bars might be missing
++---+
+
+   represents one byte; a box like this:
+
++==============+
+|              |
++==============+
+
+   represents a variable number of bytes.
+
+
+   A lzip file consists of one or more independent "members" (compressed
+data sets). The members simply appear one after another in the file, with no
+additional information before, between, or after them. Each member can
+encode in compressed form up to 16 EiB - 1 byte of uncompressed data. The
+size of a multimember file is unlimited.
+
+   Each member has the following structure:
+
++--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+| ID string | VN | DS | LZMA stream | CRC32 |   Data size   |  Member size  |
++--+--+--+--+----+----+=============+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+   All multibyte values are stored in little endian order.
+
+'ID string (the "magic" bytes)'
+     A four byte string, identifying the lzip format, with the value "LZIP"
+     (0x4C, 0x5A, 0x49, 0x50).
+
+'VN (version number, 1 byte)'
+     Just in case something needs to be modified in the future. 1 for now.
+
+'DS (coded dictionary size, 1 byte)'
+     The dictionary size is calculated by taking a power of 2 (the base
+     size) and subtracting from it a fraction between 0/16 and 7/16 of the
+     base size.
+     Bits 4-0 contain the base 2 logarithm of the base size (12 to 29).
+     Bits 7-5 contain the numerator of the fraction (0 to 7) to subtract
+     from the base size to obtain the dictionary size.
+     Example: 0xD3 = 2^19 - 6 * 2^15 = 512 KiB - 6 * 32 KiB = 320 KiB
+     Valid values for dictionary size range from 4 KiB to 512 MiB.
+
+'LZMA stream'
+     The LZMA stream, finished by an "End Of Stream" marker. Uses default
+     values for encoder properties. *Note Stream format: (lzip)Stream
+     format, for a complete description.
+
+'CRC32 (4 bytes)'
+     Cyclic Redundancy Check (CRC) of the original uncompressed data.
+
+'Data size (8 bytes)'
+     Size of the original uncompressed data.
+
+'Member size (8 bytes)'
+     Total size of the member, including header and trailer. This field acts
+     as a distributed index, improves the checking of stream integrity, and
+     facilitates the safe recovery of undamaged members from multimember
+     files. Lzip limits the member size to 2 PiB to prevent the data size
+     field from overflowing.
+
+
+
+File: plzip.info,  Node: Trailing data,  Next: Examples,  Prev: File format,  Up: Top
+
+8 Extra data appended to the file
+*********************************
+
+Sometimes extra data are found appended to a lzip file after the last
+member. Such trailing data may be:
+
+   * Padding added to make the file size a multiple of some block size, for
+     example when writing to a tape. It is safe to append any amount of
+     padding zero bytes to a lzip file.
+
+   * Useful data added by the user; an "End Of File" string (to check that
+     the file has not been truncated), a cryptographically secure hash, a
+     description of file contents, etc. It is safe to append any amount of
+     text to a lzip file as long as none of the first four bytes of the
+     text matches the corresponding byte in the string "LZIP", and the text
+     does not contain any zero bytes (null characters). Nonzero bytes and
+     zero bytes can't be safely mixed in trailing data.
+
+   * Garbage added by some not totally successful copy operation.
+
+   * Malicious data added to the file in order to make its total size and
+     hash value (for a chosen hash) coincide with those of another file.
+
+   * In rare cases, trailing data could be the corrupt header of another
+     member. In multimember or concatenated files the probability of
+     corruption happening in the magic bytes is 5 times smaller than the
+     probability of getting a false positive caused by the corruption of the
+     integrity information itself. Therefore it can be considered to be
+     below the noise level. Additionally, the test used by plzip to
+     discriminate trailing data from a corrupt header has a Hamming
+     distance (HD) of 3, and the 3 bit flips must happen in different magic
+     bytes for the test to fail. In any case, the option '--trailing-error'
+     guarantees that any corrupt header is detected.
+
+   Trailing data are in no way part of the lzip file format, but tools
+reading lzip files are expected to behave as correctly and usefully as
+possible in the presence of trailing data.
+
+   Trailing data can be safely ignored in most cases. In some cases, like
+that of user-added data, they are expected to be ignored. In those cases
+where a file containing trailing data must be rejected, the option
+'--trailing-error' can be used. *Note --trailing-error::.
+
+
+File: plzip.info,  Node: Examples,  Next: Problems,  Prev: Trailing data,  Up: Top
+
+9 A small tutorial with examples
+********************************
+
+WARNING! Even if plzip is bug-free, other causes may result in a corrupt
+compressed file (bugs in the system libraries, memory errors, etc).
+Therefore, if the data you are going to compress are important, give the
+option '--keep' to plzip and don't remove the original file until you check
+the compressed file with a command like 'plzip -cd file.lz | cmp file -'.
+Most RAM errors happening during compression can only be detected by
+comparing the compressed file with the original because the corruption
+happens before plzip compresses the RAM contents, resulting in a valid
+compressed file containing wrong data.
+
+
+Example 1: Extract all the files from archive 'foo.tar.lz'.
+
+       tar -xf foo.tar.lz
+     or
+       plzip -cd foo.tar.lz | tar -xf -
+
+
+Example 2: Replace a regular file with its compressed version 'file.lz' and
+show the compression ratio.
+
+     plzip -v file
+
+
+Example 3: Like example 2 but the created 'file.lz' has a block size of
+1 MiB. The compression ratio is not shown.
+
+     plzip -B 1MiB file
+
+
+Example 4: Restore a regular file from its compressed version 'file.lz'. If
+the operation is successful, 'file.lz' is removed.
+
+     plzip -d file.lz
+
+
+Example 5: Check the integrity of the compressed file 'file.lz' and show
+status.
+
+     plzip -tv file.lz
+
+
+Example 6: The right way of concatenating the decompressed output of two or
+more compressed files. *Note Trailing data::.
+
+     Don't do this
+       cat file1.lz file2.lz file3.lz | plzip -d -
+     Do this instead
+       plzip -cd file1.lz file2.lz file3.lz
+
+
+Example 7: Decompress 'file.lz' partially until 10 KiB of decompressed data
+are produced.
+
+     plzip -cd file.lz | dd bs=1024 count=10
+
+
+Example 8: Decompress 'file.lz' partially from decompressed byte at offset
+10000 to decompressed byte at offset 14999 (5000 bytes are produced).
+
+     plzip -cd file.lz | dd bs=1000 skip=10 count=5
+
+
+Example 9: Compress a whole device in /dev/sdc and send the output to
+'file.lz'.
+
+       plzip -c /dev/sdc > file.lz
+     or
+       plzip /dev/sdc -o file.lz
+
+
+File: plzip.info,  Node: Problems,  Next: Concept index,  Prev: Examples,  Up: Top
+
+10 Reporting bugs
+*****************
+
+There are probably bugs in plzip. There are certainly errors and omissions
+in this manual. If you report them, they will get fixed. If you don't, no
+one will ever know about them and they will remain unfixed for all
+eternity, if not longer.
+
+   If you find a bug in plzip, please send electronic mail to
+<lzip-bug@nongnu.org>. Include the version number, which you can find by
+running 'plzip --version' and 'plzip -v --check-lib'.
+
+
+File: plzip.info,  Node: Concept index,  Prev: Problems,  Up: Top
+
+Concept index
+*************
+
+ [index ]
+* Menu:
+
+* bugs:                                  Problems.                  (line 6)
+* examples:                              Examples.                  (line 6)
+* file format:                           File format.               (line 6)
+* getting help:                          Problems.                  (line 6)
+* introduction:                          Introduction.              (line 6)
+* invoking:                              Invoking plzip.            (line 6)
+* memory requirements:                   Memory requirements.       (line 6)
+* minimum file sizes:                    Minimum file sizes.        (line 6)
+* options:                               Invoking plzip.            (line 6)
+* output:                                Output.                    (line 6)
+* program design:                        Program design.            (line 6)
+* trailing data:                         Trailing data.             (line 6)
+* usage:                                 Invoking plzip.            (line 6)
+* version:                               Invoking plzip.            (line 6)
+
+
+
+Tag Table:
+Node: Top217
+Node: Introduction1156
+Node: Output5934
+Node: Invoking plzip7497
+Ref: --trailing-error8372
+Ref: --data-size8610
+Node: Program design19519
+Node: Memory requirements21818
+Node: Minimum file sizes23503
+Node: File format25506
+Ref: coded-dict-size26945
+Node: Trailing data28195
+Node: Examples30531
+Ref: concat-example31964
+Node: Problems32721
+Node: Concept index33276
+
+End Tag Table
+
+
+Local Variables:
+coding: iso-8859-15
+End:

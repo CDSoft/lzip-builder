@@ -1,0 +1,19 @@
+Changes in version 1.14:
+
+In minilzip, file diagnostics have been reformatted as 'PROGRAM: FILE: MESSAGE'.
+
+In minilzip, diagnostics caused by invalid arguments to command-line options
+now show the argument and the name of the option.
+
+The option '-o, --output' of minilzip now preserves dates, permissions, and
+ownership of the file, when (de)compressing exactly one file.
+
+It has been documented in the manual that it is the responsibility of the
+program using lzlib to include before 'lzlib.h' some header that declares
+the type 'uint8_t'. (Reported by Michal Górny).
+
+The variable MAKEINFO has been added to configure and Makefile.in.
+
+It has been documented in INSTALL that when choosing a C standard, the POSIX
+features need to be enabled explicitly:
+  ./configure CFLAGS+='--std=c99 -D_XOPEN_SOURCE=500'

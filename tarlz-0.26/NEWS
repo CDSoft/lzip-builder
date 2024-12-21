@@ -1,0 +1,13 @@
+Changes in version 0.26:
+
+tarlz now exits with error status 2 if any empty lzip member is found in a
+multimember compressed archive.
+
+Scalability of parallel compressed creation and decoding has been increased.
+
+A diagnostic message for read error has been improved.
+
+The chapter 'Syntax of command-line arguments' has been added to the manual.
+
+'make check' now skips time stamps out of range or not recognized by system
+tools. (Reported by J Dean).
