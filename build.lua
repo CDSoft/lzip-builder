@@ -39,7 +39,6 @@ Note that only lzip is supported on Windows.
 ]]
 
 local F = require "F"
-local sys = require "sys"
 local targets = require "targets"
 
 var "builddir" ".build"
@@ -50,25 +49,17 @@ rule "extract" {
     command = "curl -fsSL $url | PATH=$builddir:$$PATH tar x --$fmt",
 }
 
-var "cflags" {
+local cflags = {
     "-O3",
     "-s",
     "-Ilzlib-$lzlib_version",
+    [[-DPROGVERSION='"$progversion"']],
 }
 
-local cpp = rule "cpp" {
-    description = "c++ $out",
-    command = {
-        "$compiler",
-        "$cflags",
-        [[-DPROGVERSION="\"$progversion\""]],
-        "$in -o $out",
-    },
-}
-
-local function zig_target(target)
-    return {"-target", F{target.arch, target.os, target.libc}:str"-"}
-end
+build.cpp : add "cflags" { cflags }
+targets : foreach(function(target)
+    build.zigcpp[target.name] : add "cflags" { cflags }
+end)
 
 local host = {}         -- binaries for the current host compiled with cc/c++
 local cross = targets   -- binaries for all supported platforms compiled with zig
@@ -114,8 +105,7 @@ local lzip_sources = F.map(F.prefix("lzip-$lzip_version/"), {
 
 build(lzip_sources) { "extract", url="$lzip_url", fmt="gzip" }
 
-local lzip = build("$builddir/lzip"..sys.exe) { cpp,
-    compiler = "c++",
+local lzip = build.cpp("$builddir/lzip") {
     progversion = "$lzip_version",
     lzip_sources,
 }
@@ -123,8 +113,7 @@ acc(host) { lzip }
 
 targets : foreach(function(target)
     acc(cross[target.name]) {
-        build("$builddir"/target.name/"lzip"..target.exe) { cpp,
-            compiler = { "zig c++", zig_target(target) },
+        build.zigcpp[target.name]("$builddir"/target.name/"lzip") {
             progversion = "$lzip_version",
             lzip_sources,
         }
@@ -151,8 +140,7 @@ local plzip_sources = F.map(F.prefix("plzip-$plzip_version/"), {
 build(plzip_sources) { "extract", url="$plzip_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build("$builddir/plzip"..sys.exe) { cpp,
-        compiler = "c++",
+    build.cpp("$builddir/plzip") {
         progversion = "$plzip_version",
         plzip_sources,
         lzlib_sources,
@@ -163,8 +151,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build("$builddir"/target.name/"plzip"..target.exe) { cpp,
-            compiler = { "zig c++", zig_target(target) },
+        or build.zigcpp[target.name]("$builddir"/target.name/"plzip"..target.exe) {
             progversion = "$plzip_version",
             plzip_sources,
             lzlib_sources,
@@ -201,8 +188,7 @@ local tarlz_sources = F.map(F.prefix("tarlz-$tarlz_version/"), {
 build(tarlz_sources) { "extract", url="$tarlz_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build("$builddir/tarlz"..sys.exe) { cpp,
-        compiler = "c++",
+    build.cpp("$builddir/tarlz") {
         progversion = "$tarlz_version",
         tarlz_sources,
         lzlib_sources,
@@ -213,8 +199,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build("$builddir"/target.name/"tarlz"..target.exe) { cpp,
-            compiler = { "zig c++", zig_target(target) },
+        or build.zigcpp[target.name]("$builddir"/target.name/"tarlz"..target.exe) {
             progversion = "$tarlz_version",
             tarlz_sources,
             lzlib_sources,
@@ -254,8 +239,7 @@ local lziprecover_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"),
 build{lziprecover_sources, lziprecover_implicit_sources} { "extract", url="$lziprecover_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build("$builddir/lziprecover"..sys.exe) { cpp,
-        compiler = "g++",
+    build.cpp("$builddir/lziprecover") {
         progversion = "$lziprecover_version",
         lziprecover_sources,
         lzlib_sources,
@@ -269,8 +253,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build("$builddir"/target.name/"lziprecover"..target.exe) { cpp,
-            compiler = { "zig c++", zig_target(target) },
+        or build.zigcpp[target.name]("$builddir"/target.name/"lziprecover") {
             progversion = "$lziprecover_version",
             lziprecover_sources,
             lzlib_sources,

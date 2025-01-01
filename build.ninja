@@ -39,12 +39,6 @@ rule extract
   description = extract $url
   command = curl -fsSL $url | PATH=$builddir:$$PATH tar x --$fmt
 
-cflags = -O3 -s -Ilzlib-$lzlib_version
-
-rule cpp
-  description = c++ $out
-  command = $compiler $cflags -DPROGVERSION="\"$progversion\"" $in -o $out
-
 ######################################################################
 # lzlib
 ######################################################################
@@ -62,30 +56,286 @@ lzip_url = http://download.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar
 build lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc: extract
   fmt = gzip
   url = $lzip_url
-build $builddir/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = c++
+
+rule Cpp-cc
+  description = c++ $out
+  command = c++ -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule Cpp-ar
+  description = ar $out
+  command = ar -crs $out $in
+
+rule Cpp-so
+  description = c++ $out
+  command = c++ -shared -o $out $in
+
+rule Cpp-ld
+  description = c++ $out
+  command = c++ -o $out $in
+
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/arg_parser.o: Cpp-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
-build $builddir/linux-x86_64/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target x86_64-linux-gnu
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/decoder.o: Cpp-cc lzip-$lzip_version/decoder.cc
   progversion = $lzip_version
-build $builddir/linux-x86_64-musl/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target x86_64-linux-musl
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/encoder.o: Cpp-cc lzip-$lzip_version/encoder.cc
   progversion = $lzip_version
-build $builddir/linux-aarch64/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target aarch64-linux-gnu
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/encoder_base.o: Cpp-cc lzip-$lzip_version/encoder_base.cc
   progversion = $lzip_version
-build $builddir/linux-aarch64-musl/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target aarch64-linux-musl
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/fast_encoder.o: Cpp-cc lzip-$lzip_version/fast_encoder.cc
   progversion = $lzip_version
-build $builddir/macos-x86_64/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target x86_64-macos-none
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/list.o: Cpp-cc lzip-$lzip_version/list.cc
   progversion = $lzip_version
-build $builddir/macos-aarch64/lzip: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target aarch64-macos-none
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/lzip_index.o: Cpp-cc lzip-$lzip_version/lzip_index.cc
   progversion = $lzip_version
-build $builddir/windows-x86_64/lzip.exe: cpp lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc
-  compiler = zig c++ -target x86_64-windows-gnu
+build $builddir/tmp/lzip.tmp/lzip-$lzip_version/main.o: Cpp-cc lzip-$lzip_version/main.cc
   progversion = $lzip_version
+build $builddir/lzip: Cpp-ld $builddir/tmp/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-linux-x86_64-cc
+  description = zig c++ -target x86_64-linux-gnu $out
+  command = zig c++ -target x86_64-linux-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-linux-x86_64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-linux-x86_64-so
+  description = zig c++ -target x86_64-linux-gnu $out
+  command = zig c++ -target x86_64-linux-gnu -shared -o $out $in
+
+rule zigcpp-linux-x86_64-ld
+  description = zig c++ -target x86_64-linux-gnu $out
+  command = zig c++ -target x86_64-linux-gnu -o $out $in
+
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/linux-x86_64/lzip: zigcpp-linux-x86_64-ld $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/linux-x86_64/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-linux-x86_64-musl-cc
+  description = zig c++ -target x86_64-linux-musl $out
+  command = zig c++ -target x86_64-linux-musl -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-linux-x86_64-musl-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-linux-x86_64-musl-so
+  description = zig c++ -target x86_64-linux-musl $out
+  command = zig c++ -target x86_64-linux-musl -shared -o $out $in
+
+rule zigcpp-linux-x86_64-musl-ld
+  description = zig c++ -target x86_64-linux-musl $out
+  command = zig c++ -target x86_64-linux-musl -o $out $in
+
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/linux-x86_64-musl/lzip: zigcpp-linux-x86_64-musl-ld $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-linux-aarch64-cc
+  description = zig c++ -target aarch64-linux-gnu $out
+  command = zig c++ -target aarch64-linux-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-linux-aarch64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-linux-aarch64-so
+  description = zig c++ -target aarch64-linux-gnu $out
+  command = zig c++ -target aarch64-linux-gnu -shared -o $out $in
+
+rule zigcpp-linux-aarch64-ld
+  description = zig c++ -target aarch64-linux-gnu $out
+  command = zig c++ -target aarch64-linux-gnu -o $out $in
+
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/linux-aarch64/lzip: zigcpp-linux-aarch64-ld $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/linux-aarch64/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-linux-aarch64-musl-cc
+  description = zig c++ -target aarch64-linux-musl $out
+  command = zig c++ -target aarch64-linux-musl -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-linux-aarch64-musl-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-linux-aarch64-musl-so
+  description = zig c++ -target aarch64-linux-musl $out
+  command = zig c++ -target aarch64-linux-musl -shared -o $out $in
+
+rule zigcpp-linux-aarch64-musl-ld
+  description = zig c++ -target aarch64-linux-musl $out
+  command = zig c++ -target aarch64-linux-musl -o $out $in
+
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/linux-aarch64-musl/lzip: zigcpp-linux-aarch64-musl-ld $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-macos-x86_64-cc
+  description = zig c++ -target x86_64-macos-none $out
+  command = zig c++ -target x86_64-macos-none -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-macos-x86_64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-macos-x86_64-so
+  description = zig c++ -target x86_64-macos-none $out
+  command = zig c++ -target x86_64-macos-none -shared -o $out $in
+
+rule zigcpp-macos-x86_64-ld
+  description = zig c++ -target x86_64-macos-none $out
+  command = zig c++ -target x86_64-macos-none -o $out $in
+
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-macos-x86_64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/macos-x86_64/lzip: zigcpp-macos-x86_64-ld $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/macos-x86_64/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-macos-aarch64-cc
+  description = zig c++ -target aarch64-macos-none $out
+  command = zig c++ -target aarch64-macos-none -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-macos-aarch64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-macos-aarch64-so
+  description = zig c++ -target aarch64-macos-none $out
+  command = zig c++ -target aarch64-macos-none -shared -o $out $in
+
+rule zigcpp-macos-aarch64-ld
+  description = zig c++ -target aarch64-macos-none $out
+  command = zig c++ -target aarch64-macos-none -o $out $in
+
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/decoder.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/encoder.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/list.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/main.o: zigcpp-macos-aarch64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/macos-aarch64/lzip: zigcpp-macos-aarch64-ld $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/list.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/macos-aarch64/lzip.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-windows-x86_64-cc
+  description = zig c++ -target x86_64-windows-gnu $out
+  command = zig c++ -target x86_64-windows-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  depfile = $out.d
+
+rule zigcpp-windows-x86_64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-windows-x86_64-so
+  description = zig c++ -target x86_64-windows-gnu $out
+  command = zig c++ -target x86_64-windows-gnu -shared -o $out $in
+
+rule zigcpp-windows-x86_64-ld
+  description = zig c++ -target x86_64-windows-gnu $out
+  command = zig c++ -target x86_64-windows-gnu -o $out $in
+
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/decoder.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/list.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/main.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $builddir/windows-x86_64/lzip.exe: zigcpp-windows-x86_64-ld $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/list.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/main.o
 
 ######################################################################
 # plzip
@@ -95,27 +345,125 @@ plzip_url = http://download.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_ve
 build plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc: extract || $builddir/lzip
   fmt = lzip
   url = $plzip_url
-build $builddir/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = c++
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/arg_parser.o: Cpp-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/linux-x86_64/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-gnu
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/compress.o: Cpp-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/linux-x86_64-musl/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-musl
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/dec_stdout.o: Cpp-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/linux-aarch64/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-gnu
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/dec_stream.o: Cpp-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/linux-aarch64-musl/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-musl
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/decompress.o: Cpp-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/macos-x86_64/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-macos-none
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/list.o: Cpp-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
-build $builddir/macos-aarch64/plzip: cpp plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-macos-none
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/lzip_index.o: Cpp-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
+build $builddir/tmp/plzip.tmp/plzip-$plzip_version/main.o: Cpp-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/plzip: Cpp-ld $builddir/tmp/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-linux-x86_64-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/linux-x86_64/plzip: zigcpp-linux-x86_64-ld $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/linux-x86_64/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-linux-x86_64-musl-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/linux-x86_64-musl/plzip: zigcpp-linux-x86_64-musl-ld $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/linux-x86_64-musl/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-linux-aarch64-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/linux-aarch64/plzip: zigcpp-linux-aarch64-ld $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/linux-aarch64/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-linux-aarch64-musl-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/linux-aarch64-musl/plzip: zigcpp-linux-aarch64-musl-ld $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/linux-aarch64-musl/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-macos-x86_64-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/macos-x86_64/plzip: zigcpp-macos-x86_64-ld $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/macos-x86_64/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/arg_parser.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/compress.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/dec_stdout.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/dec_stdout.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/dec_stream.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/dec_stream.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/decompress.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/decompress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/list.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/lzip_index.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/main.o: zigcpp-macos-aarch64-cc plzip-$plzip_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $plzip_version
+build $builddir/macos-aarch64/plzip: zigcpp-macos-aarch64-ld $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/arg_parser.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/compress.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/dec_stdout.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/dec_stream.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/decompress.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/list.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/lzip_index.o $builddir/tmp/macos-aarch64/plzip.tmp/plzip-$plzip_version/main.o lzlib-$lzlib_version/lzlib.c
 
 ######################################################################
 # tarlz
@@ -125,27 +473,237 @@ tarlz_url = http://download.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_ve
 build tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc: extract || $builddir/lzip
   fmt = lzip
   url = $tarlz_url
-build $builddir/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = c++
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: Cpp-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/linux-x86_64/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-gnu
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: Cpp-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/linux-x86_64-musl/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-musl
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common.o: Cpp-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/linux-aarch64/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-gnu
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: Cpp-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/linux-aarch64-musl/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-musl
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: Cpp-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/macos-x86_64/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-macos-none
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/compress.o: Cpp-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
-build $builddir/macos-aarch64/tarlz: cpp tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-macos-none
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/create.o: Cpp-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: Cpp-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/decode.o: Cpp-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: Cpp-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/delete.o: Cpp-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: Cpp-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/exclude.o: Cpp-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/extended.o: Cpp-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: Cpp-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/main.o: Cpp-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tarlz: Cpp-ld $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-linux-x86_64-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/linux-x86_64/tarlz: zigcpp-linux-x86_64-ld $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/linux-x86_64/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-linux-x86_64-musl-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/linux-x86_64-musl/tarlz: zigcpp-linux-x86_64-musl-ld $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/linux-x86_64-musl/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-linux-aarch64-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/linux-aarch64/tarlz: zigcpp-linux-aarch64-ld $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/linux-aarch64/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-linux-aarch64-musl-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/linux-aarch64-musl/tarlz: zigcpp-linux-aarch64-musl-ld $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/linux-aarch64-musl/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-macos-x86_64-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/macos-x86_64/tarlz: zigcpp-macos-x86_64-ld $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/macos-x86_64/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/common.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/common_decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/common_mutex.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/compress.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/compress.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/create.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/create.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/create_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/decode.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/decode_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/delete.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/delete_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/exclude.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/exclude.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/extended.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/extended.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/main.o: zigcpp-macos-aarch64-cc tarlz-$tarlz_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $tarlz_version
+build $builddir/macos-aarch64/tarlz: zigcpp-macos-aarch64-ld $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/arg_parser.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_decode.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/common_mutex.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/compress.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/create.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/create_lz.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/decode_lz.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/delete_lz.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/exclude.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/extended.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/lzip_index.o $builddir/tmp/macos-aarch64/tarlz.tmp/tarlz-$tarlz_version/main.o lzlib-$lzlib_version/lzlib.c
 
 ######################################################################
 # lziprecover
@@ -155,27 +713,237 @@ lziprecover_url = http://download.savannah.gnu.org/releases/lzip/lziprecover/lzi
 build lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lziprecover-$lziprecover_version/main_common.cc: extract || $builddir/lzip
   fmt = lzip
   url = $lziprecover_url
-build $builddir/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = g++
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: Cpp-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/linux-x86_64/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-gnu
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: Cpp-cc lziprecover-$lziprecover_version/arg_parser.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/linux-x86_64-musl/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-linux-musl
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: Cpp-cc lziprecover-$lziprecover_version/byte_repair.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/linux-aarch64/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-gnu
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: Cpp-cc lziprecover-$lziprecover_version/decoder.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/linux-aarch64-musl/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-linux-musl
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: Cpp-cc lziprecover-$lziprecover_version/dump_remove.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/macos-x86_64/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target x86_64-macos-none
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: Cpp-cc lziprecover-$lziprecover_version/list.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
-build $builddir/macos-aarch64/lziprecover: cpp lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lzlib-$lzlib_version/lzlib.c | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
-  compiler = zig c++ -target aarch64-macos-none
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: Cpp-cc lziprecover-$lziprecover_version/lunzcrash.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: Cpp-cc lziprecover-$lziprecover_version/lzip_index.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: Cpp-cc lziprecover-$lziprecover_version/main.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: Cpp-cc lziprecover-$lziprecover_version/md5.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: Cpp-cc lziprecover-$lziprecover_version/merge.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: Cpp-cc lziprecover-$lziprecover_version/mtester.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: Cpp-cc lziprecover-$lziprecover_version/nrep_stats.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: Cpp-cc lziprecover-$lziprecover_version/range_dec.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: Cpp-cc lziprecover-$lziprecover_version/reproduce.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: Cpp-cc lziprecover-$lziprecover_version/split.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/lziprecover: Cpp-ld $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-linux-x86_64-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/linux-x86_64/lziprecover: zigcpp-linux-x86_64-ld $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/linux-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-linux-x86_64-musl-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/linux-x86_64-musl/lziprecover: zigcpp-linux-x86_64-musl-ld $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/linux-x86_64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-linux-aarch64-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/linux-aarch64/lziprecover: zigcpp-linux-aarch64-ld $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/linux-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-linux-aarch64-musl-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/linux-aarch64-musl/lziprecover: zigcpp-linux-aarch64-musl-ld $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/linux-aarch64-musl/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-macos-x86_64-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/macos-x86_64/lziprecover: zigcpp-macos-x86_64-ld $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/macos-x86_64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/byte_repair.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/decoder.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/dump_remove.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/list.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/lunzcrash.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/lzip_index.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/main.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/md5.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/merge.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/mtester.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/nrep_stats.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/range_dec.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/reproduce.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o: zigcpp-macos-aarch64-cc lziprecover-$lziprecover_version/split.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
+  progversion = $lziprecover_version
+build $builddir/macos-aarch64/lziprecover: zigcpp-macos-aarch64-ld $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/arg_parser.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/byte_repair.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/decoder.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/dump_remove.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/list.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lunzcrash.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/lzip_index.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/main.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/md5.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/merge.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/mtester.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/nrep_stats.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/range_dec.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/reproduce.o $builddir/tmp/macos-aarch64/lziprecover.tmp/lziprecover-$lziprecover_version/split.o lzlib-$lzlib_version/lzlib.c
 
 ######################################################################
 # Host binaries
