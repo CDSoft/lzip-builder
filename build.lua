@@ -16,7 +16,7 @@
 -- For further information about lzip-builder you can visit
 -- https://github.com/CDSoft/lzip-builder
 
-var "release" "lzip-build-r1"
+var "release" "2025-01-11"
 
 var "lzlib_version"         "1.14"
 var "lzip_version"          "1.24.1"
@@ -44,9 +44,13 @@ local targets = require "targets"
 var "builddir" ".build"
 clean "$builddir"
 
+var "tmp" "$builddir/tmp"
+var "bin" "$builddir/bin"
+var "all" "$builddir/all"
+
 rule "extract" {
     description = "extract $url",
-    command = "curl -fsSL $url | PATH=$builddir:$$PATH tar x --$fmt",
+    command = "curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt",
 }
 
 local cflags = {
@@ -56,9 +60,13 @@ local cflags = {
     [[-DPROGVERSION='"$progversion"']],
 }
 
-build.cpp : add "cflags" { cflags }
+local ldflags = {
+    "-s",
+}
+
+build.cpp : add "cflags" { cflags } : add "ldflags" { ldflags }
 targets : foreach(function(target)
-    build.zigcpp[target.name] : add "cflags" { cflags }
+    build.zigcpp[target.name] : add "cflags" { cflags } : add "ldflags" { ldflags }
 end)
 
 local host = {}         -- binaries for the current host compiled with cc/c++
@@ -105,7 +113,7 @@ local lzip_sources = F.map(F.prefix("lzip-$lzip_version/"), {
 
 build(lzip_sources) { "extract", url="$lzip_url", fmt="gzip" }
 
-local lzip = build.cpp("$builddir/lzip") {
+local lzip = build.cpp("$bin/lzip") {
     progversion = "$lzip_version",
     lzip_sources,
 }
@@ -113,7 +121,7 @@ acc(host) { lzip }
 
 targets : foreach(function(target)
     acc(cross[target.name]) {
-        build.zigcpp[target.name]("$builddir"/target.name/"lzip") {
+        build.zigcpp[target.name]("$all"/target.name/"lzip") {
             progversion = "$lzip_version",
             lzip_sources,
         }
@@ -140,7 +148,7 @@ local plzip_sources = F.map(F.prefix("plzip-$plzip_version/"), {
 build(plzip_sources) { "extract", url="$plzip_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build.cpp("$builddir/plzip") {
+    build.cpp("$bin/plzip") {
         progversion = "$plzip_version",
         plzip_sources,
         lzlib_sources,
@@ -151,7 +159,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build.zigcpp[target.name]("$builddir"/target.name/"plzip"..target.exe) {
+        or build.zigcpp[target.name]("$all"/target.name/"plzip"..target.exe) {
             progversion = "$plzip_version",
             plzip_sources,
             lzlib_sources,
@@ -188,7 +196,7 @@ local tarlz_sources = F.map(F.prefix("tarlz-$tarlz_version/"), {
 build(tarlz_sources) { "extract", url="$tarlz_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build.cpp("$builddir/tarlz") {
+    build.cpp("$bin/tarlz") {
         progversion = "$tarlz_version",
         tarlz_sources,
         lzlib_sources,
@@ -199,7 +207,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build.zigcpp[target.name]("$builddir"/target.name/"tarlz"..target.exe) {
+        or build.zigcpp[target.name]("$all"/target.name/"tarlz"..target.exe) {
             progversion = "$tarlz_version",
             tarlz_sources,
             lzlib_sources,
@@ -223,6 +231,10 @@ local lziprecover_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"),
     "byte_repair.cc",
     "decoder.cc",
     "dump_remove.cc",
+    "fec_create.cc",
+    "fec_repair.cc",
+    "gf8.cc",
+    "gf16.cc",
     "list.cc",
     "lunzcrash.cc",
     "lzip_index.cc",
@@ -232,6 +244,7 @@ local lziprecover_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"),
     "mtester.cc",
     "nrep_stats.cc",
     "range_dec.cc",
+    "recursive.cc",
     "reproduce.cc",
     "split.cc",
 })
@@ -239,7 +252,7 @@ local lziprecover_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"),
 build{lziprecover_sources, lziprecover_implicit_sources} { "extract", url="$lziprecover_url", fmt="lzip", order_only_deps=lzip }
 
 acc(host) {
-    build.cpp("$builddir/lziprecover") {
+    build.cpp("$bin/lziprecover") {
         progversion = "$lziprecover_version",
         lziprecover_sources,
         lzlib_sources,
@@ -253,7 +266,7 @@ acc(host) {
 targets : foreach(function(target)
     acc(cross[target.name]) {
         target.os == "windows" and {}
-        or build.zigcpp[target.name]("$builddir"/target.name/"lziprecover") {
+        or build.zigcpp[target.name]("$all"/target.name/"lziprecover") {
             progversion = "$lziprecover_version",
             lziprecover_sources,
             lzlib_sources,
@@ -283,11 +296,27 @@ rule "tar" {
 }
 
 local archives = targets : map(function(target)
-    return build("$builddir/${release}-"..target.name..".tar.gz") { "tar",
+    return build("$builddir/lzip-build-${release}-"..target.name..".tar.gz") { "tar",
         cross[target.name],
-        prefix = "$builddir"/target.name,
+        prefix = "$all"/target.name,
     }
 end)
 
-phony "all" { archives }
+local release_note = build "$builddir/README.md" {
+    description = "$out",
+    command = {
+        "(",
+        'echo "# Lzip ${release}";',
+        'echo "";',
+        'echo "| Program | Version | Documentation |";',
+        'echo "| ------- | ------- | ------------- |";',
+        'echo "| lzip | [$lzip_version]($lzip_url) | <https://www.nongnu.org/lzip/> |";',
+        'echo "| plzip | [$plzip_version]($plzip_url) | <https://www.nongnu.org/lzip/plzip.html> |";',
+        'echo "| tarlz | [$tarlz_version]($tarlz_url) | <https://www.nongnu.org/lzip/tarlz.html> |";',
+        'echo "| lziprecover | [$lziprecover_version]($lziprecover_url) | <https://www.nongnu.org/lzip/lziprecover.html> |";',
+        ") > $out",
+    },
+}
+
+phony "all" { archives, release_note }
 help "all" "Build Lzip archives for Linux, MacOS and Windows"
