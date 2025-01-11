@@ -22,7 +22,7 @@ var "lzlib_version"         "1.14"
 var "lzip_version"          "1.24.1"
 var "plzip_version"         "1.11"
 var "tarlz_version"         "0.26"
-var "lziprecover_version"   "1.24"
+var "lziprecover_version"   "1.25"
 
 help.name "lzip-builder"
 help.description [[
@@ -33,7 +33,7 @@ This Ninja build file will compile and install:
 - lzip          $lzip_version
 - plzip         $plzip_version
 - tarlz         $tarlz_version
-- lziprecovery  $lziprecover_version
+- lziprecover   $lziprecover_version
 
 Note that only lzip is supported on Windows.
 ]]
