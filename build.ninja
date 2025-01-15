@@ -27,8 +27,8 @@
 
 ninja_required_version = 1.11.1
 
-release = 2025-01-11
-lzlib_version = 1.14
+release = 2025-01-15
+lzlib_version = 1.15
 lzip_version = 1.24.1
 plzip_version = 1.11
 tarlz_version = 0.26

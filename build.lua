@@ -16,9 +16,9 @@
 -- For further information about lzip-builder you can visit
 -- https://github.com/CDSoft/lzip-builder
 
-var "release" "2025-01-11"
+var "release" "2025-01-15"
 
-var "lzlib_version"         "1.14"
+var "lzlib_version"         "1.15"
 var "lzip_version"          "1.24.1"
 var "plzip_version"         "1.11"
 var "tarlz_version"         "0.26"
