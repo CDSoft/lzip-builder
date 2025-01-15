@@ -40,7 +40,7 @@ all = $builddir/all
 
 rule extract
   description = extract $url
-  command = curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt
+  command = curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt $opt
 
 ######################################################################
 # lzlib
@@ -49,6 +49,7 @@ rule extract
 lzlib_url = http://download.savannah.gnu.org/releases/lzip/lzlib/lzlib-$lzlib_version.tar.gz
 build lzlib-$lzlib_version/lzlib.c lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c: extract
   fmt = gzip
+  opt = --exclude="doc/*" --exclude="testsuite/*"
   url = $lzlib_url
 
 ######################################################################
@@ -58,6 +59,7 @@ build lzlib-$lzlib_version/lzlib.c lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_v
 lzip_url = http://download.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar.gz
 build lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc: extract
   fmt = gzip
+  opt = --exclude="doc/*" --exclude="testsuite/*"
   url = $lzip_url
 
 rule Cpp-cc
@@ -347,6 +349,7 @@ build $all/windows-x86_64/lzip.exe: zigcpp-windows-x86_64-ld $builddir/tmp/$all/
 plzip_url = http://download.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_version.tar.lz
 build plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc: extract || $bin/lzip
   fmt = lzip
+  opt = --exclude="doc/*" --exclude="testsuite/*"
   url = $plzip_url
 build $builddir/tmp/$bin/plzip.tmp/plzip-$plzip_version/arg_parser.o: Cpp-cc plzip-$plzip_version/arg_parser.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $plzip_version
@@ -475,6 +478,7 @@ build $all/macos-aarch64/plzip: zigcpp-macos-aarch64-ld $builddir/tmp/$all/macos
 tarlz_url = http://download.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_version.tar.lz
 build tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc: extract || $bin/lzip
   fmt = lzip
+  opt = --exclude="doc/*" --exclude="testsuite/*"
   url = $tarlz_url
 build $builddir/tmp/$bin/tarlz.tmp/tarlz-$tarlz_version/archive_reader.o: Cpp-cc tarlz-$tarlz_version/archive_reader.cc | lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $tarlz_version
@@ -715,6 +719,7 @@ build $all/macos-aarch64/tarlz: zigcpp-macos-aarch64-ld $builddir/tmp/$all/macos
 lziprecover_url = http://download.savannah.gnu.org/releases/lzip/lziprecover/lziprecover-$lziprecover_version.tar.lz
 build lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/fec_create.cc lziprecover-$lziprecover_version/fec_repair.cc lziprecover-$lziprecover_version/gf8.cc lziprecover-$lziprecover_version/gf16.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/recursive.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lziprecover-$lziprecover_version/main_common.cc: extract || $bin/lzip
   fmt = lzip
+  opt = --exclude="doc/*" --exclude="testsuite/*"
   url = $lziprecover_url
 build $builddir/tmp/$bin/lziprecover.tmp/lziprecover-$lziprecover_version/alone_to_lz.o: Cpp-cc lziprecover-$lziprecover_version/alone_to_lz.cc | lziprecover-$lziprecover_version/main_common.cc lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c
   progversion = $lziprecover_version

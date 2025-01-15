@@ -50,7 +50,7 @@ var "all" "$builddir/all"
 
 rule "extract" {
     description = "extract $url",
-    command = "curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt",
+    command = "curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt $opt",
 }
 
 local cflags = {
@@ -92,7 +92,14 @@ local lzlib_sources = F.map(F.prefix("lzlib-$lzlib_version/"), {
     "lzlib.c",
 })
 
-build{lzlib_sources, lzlib_implicit_sources} { "extract", url="$lzlib_url", fmt="gzip" }
+build{lzlib_sources, lzlib_implicit_sources} { "extract",
+    url = "$lzlib_url",
+    fmt = "gzip",
+    opt = {
+        '--exclude="doc/*"',
+        '--exclude="testsuite/*"',
+    },
+}
 
 --------------------------------------------------------------------
 section "lzip"
@@ -111,7 +118,14 @@ local lzip_sources = F.map(F.prefix("lzip-$lzip_version/"), {
     "main.cc",
 })
 
-build(lzip_sources) { "extract", url="$lzip_url", fmt="gzip" }
+build(lzip_sources) { "extract",
+    url = "$lzip_url",
+    fmt = "gzip",
+    opt = {
+        '--exclude="doc/*"',
+        '--exclude="testsuite/*"',
+    },
+}
 
 local lzip = build.cpp("$bin/lzip") {
     progversion = "$lzip_version",
@@ -145,7 +159,15 @@ local plzip_sources = F.map(F.prefix("plzip-$plzip_version/"), {
     "main.cc",
 })
 
-build(plzip_sources) { "extract", url="$plzip_url", fmt="lzip", order_only_deps=lzip }
+build(plzip_sources) { "extract",
+    url = "$plzip_url",
+    fmt = "lzip",
+    order_only_deps = lzip,
+    opt = {
+        '--exclude="doc/*"',
+        '--exclude="testsuite/*"',
+    },
+}
 
 acc(host) {
     build.cpp("$bin/plzip") {
@@ -193,7 +215,15 @@ local tarlz_sources = F.map(F.prefix("tarlz-$tarlz_version/"), {
     "main.cc",
 })
 
-build(tarlz_sources) { "extract", url="$tarlz_url", fmt="lzip", order_only_deps=lzip }
+build(tarlz_sources) { "extract",
+    url = "$tarlz_url",
+    fmt = "lzip",
+    order_only_deps = lzip,
+    opt = {
+        '--exclude="doc/*"',
+        '--exclude="testsuite/*"',
+    },
+}
 
 acc(host) {
     build.cpp("$bin/tarlz") {
@@ -249,7 +279,15 @@ local lziprecover_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"),
     "split.cc",
 })
 
-build{lziprecover_sources, lziprecover_implicit_sources} { "extract", url="$lziprecover_url", fmt="lzip", order_only_deps=lzip }
+build{lziprecover_sources, lziprecover_implicit_sources} { "extract",
+    url = "$lziprecover_url",
+    fmt = "lzip",
+    order_only_deps = lzip,
+    opt = {
+        '--exclude="doc/*"',
+        '--exclude="testsuite/*"',
+    },
+}
 
 acc(host) {
     build.cpp("$bin/lziprecover") {
