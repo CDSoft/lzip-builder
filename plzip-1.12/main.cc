@@ -1,6 +1,6 @@
 /* Plzip - Massively parallel implementation of lzip
    Copyright (C) 2009 Laszlo Ersek.
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <climits>		// SSIZE_MAX
+#include <climits>		// CHAR_BIT, SSIZE_MAX
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -42,8 +42,10 @@
 #if defined __MSVCRT__ || defined __OS2__
 #include <io.h>
 #if defined __MSVCRT__
+#include <direct.h>
 #define fchmod(x,y) 0
 #define fchown(x,y,z) 0
+#define mkdir(name,mode) _mkdir(name)
 #define strtoull std::strtoul
 #define SIGHUP SIGTERM
 #define S_ISSOCK(x) 0
@@ -77,7 +79,7 @@ int verbosity = 0;
 namespace {
 
 const char * const program_name = "plzip";
-const char * const program_year = "2024";
+const char * const program_year = "2025";
 const char * invocation_name = program_name;		// default value
 
 const struct { const char * from; const char * to; } known_extensions[] = {
@@ -102,25 +104,26 @@ bool delete_output_on_interrupt = false;
 
 void show_help( const long num_online )
   {
-  std::printf( "Plzip is a massively parallel (multi-threaded) implementation of lzip,\n"
-               "compatible with lzip 1.4 or newer. Plzip uses the compression library lzlib.\n"
+  std::printf( "Plzip is a massively parallel (multi-threaded) implementation of lzip. Plzip\n"
+               "uses the compression library lzlib.\n"
                "\nLzip is a lossless data compressor with a user interface similar to the one\n"
-               "of gzip or bzip2. Lzip uses a simplified form of the 'Lempel-Ziv-Markov\n"
-               "chain-Algorithm' (LZMA) stream format to maximize interoperability. The\n"
-               "maximum dictionary size is 512 MiB so that any lzip file can be decompressed\n"
-               "on 32-bit machines. Lzip provides accurate and robust 3-factor integrity\n"
-               "checking. Lzip can compress about as fast as gzip (lzip -0) or compress most\n"
-               "files more than bzip2 (lzip -9). Decompression speed is intermediate between\n"
-               "gzip and bzip2. Lzip is better than gzip and bzip2 from a data recovery\n"
-               "perspective. Lzip has been designed, written, and tested with great care to\n"
-               "replace gzip and bzip2 as the standard general-purpose compressed format for\n"
-               "Unix-like systems.\n"
+               "of gzip or bzip2. Lzip uses a simplified form of LZMA (Lempel-Ziv-Markov\n"
+               "chain-Algorithm) designed to achieve complete interoperability between\n"
+               "implementations. The maximum dictionary size is 512 MiB so that any lzip\n"
+               "file can be decompressed on 32-bit machines. Lzip provides accurate and\n"
+               "robust 3-factor integrity checking. 'lzip -0' compresses about as fast as\n"
+               "gzip, while 'lzip -9' compresses most files more than bzip2. Decompression\n"
+               "speed is intermediate between gzip and bzip2. Lzip provides better data\n"
+               "recovery capabilities than gzip and bzip2. Lzip has been designed, written,\n"
+               "and tested with great care to replace gzip and bzip2 as general-purpose\n"
+               "compressed format for Unix-like systems.\n"
                "\nPlzip can compress/decompress large files on multiprocessor machines much\n"
                "faster than lzip, at the cost of a slightly reduced compression ratio (0.4\n"
                "to 2 percent larger compressed files). Note that the number of usable\n"
                "threads is limited by file size; on files larger than a few GB plzip can use\n"
-               "hundreds of processors, but on files of only a few MB plzip is no faster\n"
-               "than lzip.\n"
+               "hundreds of processors, but on files smaller than 1 MiB plzip is no faster\n"
+               "than lzip (not even at compression level -0).\n"
+               "The number of threads defaults to the number of processors.\n"
                "\nUsage: %s [options] [files]\n", invocation_name );
   std::printf( "\nOptions:\n"
                "  -h, --help                     display this help and exit\n"
@@ -277,7 +280,7 @@ const char * format_ds( const unsigned dictionary_size )
   const char * p = "";
   const char * np = "  ";
   unsigned num = dictionary_size;
-  bool exact = ( num % factor == 0 );
+  bool exact = num % factor == 0;
 
   for( int i = 0; i < n && ( num > 9999 || ( exact && num >= factor ) ); ++i )
     { num /= factor; if( num % factor != 0 ) exact = false;
@@ -306,7 +309,7 @@ const char * format_num3( unsigned long long num )
   char * const buf = buffer[current++]; current %= buffers;
   char * p = buf + bufsize - 1;		// fill the buffer backwards
   *p = 0;	// terminator
-  if( num > 1024 )
+  if( num > 9999 )
     {
     char prefix = 0;			// try binary first, then si
     for( int i = 0; i < n && num != 0 && num % 1024 == 0; ++i )
@@ -352,7 +355,7 @@ unsigned long long getnum( const char * const arg,
 
   if( !errno && tail[0] )
     {
-    const unsigned factor = ( tail[1] == 'i' ) ? 1024 : 1000;
+    const unsigned factor = (tail[1] == 'i') ? 1024 : 1000;
     int exponent = 0;				// 0 = bad multiplier
     switch( tail[0] )
       {
@@ -470,9 +473,9 @@ int open_instream( const char * const name, struct stat * const in_statsp,
     {
     const int i = fstat( infd, in_statsp );
     const mode_t mode = in_statsp->st_mode;
-    const bool can_read = ( i == 0 && !reg_only &&
-                            ( S_ISBLK( mode ) || S_ISCHR( mode ) ||
-                              S_ISFIFO( mode ) || S_ISSOCK( mode ) ) );
+    const bool can_read = i == 0 && !reg_only &&
+                          ( S_ISBLK( mode ) || S_ISCHR( mode ) ||
+                            S_ISFIFO( mode ) || S_ISSOCK( mode ) );
     if( i != 0 || ( !S_ISREG( mode ) && ( !can_read || one_to_one ) ) )
       {
       if( verbosity >= 0 )
@@ -495,7 +498,7 @@ int open_instream2( const char * const name, struct stat * const in_statsp,
   if( program_mode == m_compress && !recompress && eindex >= 0 )
     {
     if( verbosity >= 0 )
-      std::fprintf( stderr, "%s: %s: Input file already has '%s' suffix.\n",
+      std::fprintf( stderr, "%s: %s: Input file already has '%s' suffix, ignored.\n",
                     program_name, name, known_extensions[eindex].from );
     return -1;
     }
@@ -539,8 +542,8 @@ bool open_outstream( const bool force, const bool protect )
   if( force ) flags |= O_TRUNC; else flags |= O_EXCL;
 
   outfd = -1;
-  if( output_filename.size() &&
-      output_filename[output_filename.size()-1] == '/' ) errno = EISDIR;
+  if( output_filename.size() && output_filename.end()[-1] == '/' )
+    errno = EISDIR;
   else {
     if( !protect && !make_dirs( output_filename ) )
       { show_file_error( output_filename.c_str(),
@@ -810,7 +813,7 @@ int main( const int argc, const char * const argv[] )
     { opt_in, "in-slots",       Arg_parser::yes },
     { opt_lt, "loose-trailing", Arg_parser::no  },
     { opt_out, "out-slots",     Arg_parser::yes },
-    {  0, 0,                    Arg_parser::no  } };
+    { 0, 0,                     Arg_parser::no  } };
 
   const Arg_parser parser( argc, argv, options );
   if( parser.error().size() )				// bad option
@@ -831,11 +834,11 @@ int main( const int argc, const char * const argv[] )
     const char * const arg = sarg.c_str();
     switch( code )
       {
-      case '0': case '1': case '2': case '3': case '4':
-      case '5': case '6': case '7': case '8': case '9':
+      case '0': case '1': case '2': case '3': case '4': case '5':
+      case '6': case '7': case '8': case '9':
                 encoder_options = option_mapping[code-'0']; break;
       case 'a': cl_opts.ignore_trailing = false; break;
-      case 'b': break;
+      case 'b': break;					// ignored
       case 'B': data_size = getnum( arg, pn, 2 * LZ_min_dictionary_size(),
                                     2 * LZ_max_dictionary_size() ); break;
       case 'c': to_stdout = true; break;
@@ -854,7 +857,7 @@ int main( const int argc, const char * const argv[] )
       case 'q': verbosity = -1; break;
       case 's': encoder_options.dictionary_size = get_dict_size( arg, pn );
                 break;
-      case 'S': break;
+      case 'S': break;					// ignored
       case 't': set_mode( program_mode, m_test ); break;
       case 'v': if( verbosity < 4 ) ++verbosity; break;
       case 'V': show_version(); return 0;
@@ -935,9 +938,10 @@ int main( const int argc, const char * const argv[] )
     {
     std::string input_filename;
     int infd;
+    const bool from_stdin = filenames[i] == "-";
 
     pp.set_name( filenames[i] );
-    if( filenames[i] == "-" )
+    if( from_stdin )
       {
       if( stdin_used ) continue; else stdin_used = true;
       infd = STDIN_FILENO;
@@ -985,8 +989,8 @@ int main( const int argc, const char * const argv[] )
                       infd, outfd, pp, debug_level );
     else
       tmp = decompress( cfile_size, num_workers, infd, outfd, cl_opts, pp,
-                        debug_level, in_slots, out_slots, infd_isreg,
-                        one_to_one );
+                        debug_level, in_slots, out_slots, from_stdin,
+                        infd_isreg, one_to_one );
     if( close( infd ) != 0 )
       { show_file_error( pp.name(), "Error closing input file", errno );
         set_retval( tmp, 1 ); }

@@ -4,8 +4,9 @@ You will need a C++98 compiler with support for 'long long', and the
 compression library lzlib installed. (gcc 3.3.6 or newer is recommended).
 I use gcc 6.1.0 and 3.3.6, but the code should compile with any standards
 compliant compiler.
-Gcc is available at http://gcc.gnu.org.
-Lzlib is available at http://www.nongnu.org/lzip/lzlib.html.
+Gcc is available at http://gcc.gnu.org
+Lzip is available at http://www.nongnu.org/lzip/lzip.html
+Lzlib is available at http://www.nongnu.org/lzip/lzlib.html
 
 Lzlib must be version 1.0 or newer, but the fast encoder requires lzlib 1.7
 or newer, the Hamming distance (HD) = 3 detection of corrupt headers in
@@ -86,7 +87,7 @@ After running 'configure', you can run 'make' and 'make install' as
 explained above.
 
 
-Copyright (C) 2009-2024 Antonio Diaz Diaz.
+Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute, and modify it.

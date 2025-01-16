@@ -1,5 +1,5 @@
 /* Plzip - Massively parallel implementation of lzip
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -207,8 +207,10 @@ inline void set_retval( int & retval, const int new_val )
 const char * const bad_magic_msg = "Bad magic number (file not in lzip format).";
 const char * const bad_dict_msg = "Invalid dictionary size in member header.";
 const char * const corrupt_mm_msg = "Corrupt header in multimember file.";
-const char * const trailing_msg = "Trailing data not allowed.";
+const char * const empty_msg = "Empty member not allowed.";
 const char * const mem_msg = "Not enough memory.";
+const char * const trailing_msg = "Trailing data not allowed.";
+const char * const wr_err_msg = "Write error";
 
 // defined in compress.cc
 int readblock( const int fd, uint8_t * const buf, const int size );
@@ -255,7 +257,7 @@ void show_results( const unsigned long long in_size,
 int decompress( const unsigned long long cfile_size, int num_workers,
                 const int infd, const int outfd, const Cl_options & cl_opts,
                 const Pretty_print & pp, const int debug_level,
-                const int in_slots, const int out_slots,
+                const int in_slots, const int out_slots, const bool from_stdin,
                 const bool infd_isreg, const bool one_to_one );
 
 // defined in list.cc

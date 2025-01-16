@@ -1,0 +1,8 @@
+Changes in version 1.12:
+
+plzip now exits with error status 2 if any empty member is found in a
+multimember file.
+
+Scalability when decompressing to standard output has been increased.
+
+The chapter 'Syntax of command-line arguments' has been added to the manual.

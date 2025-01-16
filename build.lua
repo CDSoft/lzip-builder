@@ -20,7 +20,7 @@ var "release" "2025-01-15"
 
 var "lzlib_version"         "1.15"
 var "lzip_version"          "1.24.1"
-var "plzip_version"         "1.11"
+var "plzip_version"         "1.12"
 var "tarlz_version"         "0.26"
 var "lziprecover_version"   "1.25"
 

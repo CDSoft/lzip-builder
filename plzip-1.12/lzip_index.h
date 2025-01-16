@@ -1,5 +1,5 @@
 /* Plzip - Massively parallel implementation of lzip
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ class Lzip_index
   const long long insize;
   int retval_;
   unsigned dictionary_size_;	// largest dictionary size in the file
-  bool bad_magic_;		// bad magic in first header
+  bool good_magic_;		// good magic in first header
 
   bool check_header( const Lzip_header & header, const bool first );
   void set_errno_error( const char * const msg );
@@ -71,7 +71,15 @@ public:
   const std::string & error() const { return error_; }
   int retval() const { return retval_; }
   unsigned dictionary_size() const { return dictionary_size_; }
-  bool bad_magic() const { return bad_magic_; }
+  bool good_magic() const { return good_magic_; }
+
+  bool multi_empty() const	// multimember file with empty member(s)
+    {
+    if( member_vector.size() > 1 )
+      for( unsigned long i = 0; i < member_vector.size(); ++i )
+        if( member_vector[i].dblock.size() == 0 ) return true;
+    return false;
+    }
 
   long long udata_size() const
     { if( member_vector.empty() ) return 0;

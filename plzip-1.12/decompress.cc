@@ -1,6 +1,6 @@
 /* Plzip - Massively parallel implementation of lzip
    Copyright (C) 2009 Laszlo Ersek.
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -115,7 +115,7 @@ int pwriteblock( const int fd, const uint8_t * const buf, const int size,
   }
 
 
-void decompress_error( struct LZ_Decoder * const decoder,
+void decompress_error( LZ_Decoder * const decoder,
                        const Pretty_print & pp,
                        Shared_retval & shared_retval, const int worker_id )
   {
@@ -158,11 +158,16 @@ struct Worker_arg
   const Lzip_index * lzip_index;
   const Pretty_print * pp;
   Shared_retval * shared_retval;
-  int worker_id;
-  int num_workers;
   int infd;
+  int num_workers;
   int outfd;
+  int worker_id;
   bool nocopy;		// avoid copying decompressed data when testing
+  void assign( const Lzip_index & li, const Pretty_print & pp_,
+               Shared_retval & sr, const int ifd, const int nw,
+               const int ofd, const int wi, const bool nc )
+    { lzip_index = &li; pp = &pp_; shared_retval = &sr; infd = ifd;
+      num_workers = nw; outfd = ofd; worker_id = wi; nocopy = nc; }
   };
 
 
@@ -243,7 +248,7 @@ extern "C" void * dworker( void * arg )
           {
           if( data_rest != 0 )
             internal_error( "final data_rest is not zero." );
-          LZ_decompress_reset( decoder );	// prepare for new member
+          LZ_decompress_reset( decoder );	// prepare for next member
           break;
           }
         if( rd == 0 ) break;
@@ -264,11 +269,11 @@ done:
 } // end namespace
 
 
-// start the workers and wait for them to finish.
+// start the workers and wait for them to finish
 int decompress( const unsigned long long cfile_size, int num_workers,
                 const int infd, const int outfd, const Cl_options & cl_opts,
                 const Pretty_print & pp, const int debug_level,
-                const int in_slots, const int out_slots,
+                const int in_slots, const int out_slots, const bool from_stdin,
                 const bool infd_isreg, const bool one_to_one )
   {
   if( !infd_isreg )
@@ -284,11 +289,11 @@ int decompress( const unsigned long long cfile_size, int num_workers,
     }
   if( lzip_index.retval() != 0 )	// corrupt or invalid input file
     {
-    if( lzip_index.bad_magic() )
-      show_file_error( pp.name(), lzip_index.error().c_str() );
-    else pp( lzip_index.error().c_str() );
+    if( lzip_index.good_magic() ) pp( lzip_index.error().c_str() );
+    else show_file_error( pp.name(), lzip_index.error().c_str() );
     return lzip_index.retval();
     }
+  const bool multi_empty = !from_stdin && lzip_index.multi_empty();
 
   if( num_workers > lzip_index.members() ) num_workers = lzip_index.members();
 
@@ -301,8 +306,11 @@ int decompress( const unsigned long long cfile_size, int num_workers,
       if( debug_level & 2 ) std::fputs( "decompress file to stdout.\n", stderr );
       if( verbosity >= 1 ) pp();
       show_progress( 0, cfile_size, &pp );			// init
-      return dec_stdout( num_workers, infd, outfd, pp, debug_level, out_slots,
-                         lzip_index );
+      const int tmp = dec_stdout( num_workers, infd, outfd, pp, debug_level,
+                                  out_slots, lzip_index );
+      if( tmp ) return tmp;
+      if( multi_empty ) { show_file_error( pp.name(), empty_msg ); return 2; }
+      return 0;
       }
     }
 
@@ -325,14 +333,8 @@ int decompress( const unsigned long long cfile_size, int num_workers,
   int i = 0;				// number of workers started
   for( ; i < num_workers; ++i )
     {
-    worker_args[i].lzip_index = &lzip_index;
-    worker_args[i].pp = &pp;
-    worker_args[i].shared_retval = &shared_retval;
-    worker_args[i].worker_id = i;
-    worker_args[i].num_workers = num_workers;
-    worker_args[i].infd = infd;
-    worker_args[i].outfd = outfd;
-    worker_args[i].nocopy = nocopy;
+    worker_args[i].assign( lzip_index, pp, shared_retval, infd, num_workers,
+                           outfd, i, nocopy );
     const int errcode =
       pthread_create( &worker_threads[i], 0, dworker, &worker_args[i] );
     if( errcode )
@@ -359,5 +361,6 @@ int decompress( const unsigned long long cfile_size, int num_workers,
     std::fprintf( stderr,
       "workers started                           %8u\n", num_workers );
 
+  if( multi_empty ) { show_file_error( pp.name(), empty_msg ); return 2; }
   return 0;
   }

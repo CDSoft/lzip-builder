@@ -1,6 +1,6 @@
 /* Plzip - Massively parallel implementation of lzip
    Copyright (C) 2009 Laszlo Ersek.
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,10 +54,10 @@ struct Packet			// data block
   uint8_t * data;		// data may be null if size == 0
   int size;			// number of bytes in data (if any)
   bool eom;			// end of member
-  Packet() : data( 0 ), size( 0 ), eom( true ) {}
+  Packet() : data( 0 ), size( 0 ), eom( false ) {}
   Packet( uint8_t * const d, const int s, const bool e )
     : data( d ), size( s ), eom ( e ) {}
-  ~Packet() { if( data ) delete[] data; }
+  void delete_data() { if( data ) { delete[] data; data = 0; } }
   };
 
 
@@ -69,11 +69,11 @@ public:
   unsigned ocheck_counter;
   unsigned owait_counter;
 private:
-  int receive_worker_id;	// worker queue currently receiving packets
-  int deliver_worker_id;	// worker queue currently delivering packets
+  int receive_id;		// worker queue currently receiving packets
+  int deliver_id;		// worker queue currently delivering packets
   Slot_tally slot_tally;		// limits the number of input packets
-  std::vector< std::queue< const Packet * > > ipacket_queues;
-  std::vector< std::queue< const Packet * > > opacket_queues;
+  std::vector< std::queue< Packet > > ipacket_queues;
+  std::vector< std::queue< Packet > > opacket_queues;
   int num_working;			// number of workers still running
   const int num_workers;		// number of workers
   const unsigned out_slots;		// max output packets per queue
@@ -94,11 +94,11 @@ public:
                   const int in_slots, const int oslots )
     : icheck_counter( 0 ), iwait_counter( 0 ),
       ocheck_counter( 0 ), owait_counter( 0 ),
-      receive_worker_id( 0 ), deliver_worker_id( 0 ),
-      slot_tally( in_slots ), ipacket_queues( workers ),
-      opacket_queues( workers ), num_working( workers ),
-      num_workers( workers ), out_slots( oslots ), slot_av( workers ),
-      shared_retval( sh_ret ), eof( false ), trailing_data_found_( false )
+      receive_id( 0 ), deliver_id( 0 ), slot_tally( in_slots ),
+      ipacket_queues( workers ), opacket_queues( workers ),
+      num_working( workers ), num_workers( workers ),
+      out_slots( oslots ), slot_av( workers ), shared_retval( sh_ret ),
+      eof( false ), trailing_data_found_( false )
     {
     xinit_mutex( &imutex ); xinit_cond( &iav_or_eof );
     xinit_mutex( &omutex ); xinit_cond( &oav_or_exit );
@@ -111,9 +111,9 @@ public:
       for( int i = 0; i < num_workers; ++i )
         {
         while( !ipacket_queues[i].empty() )
-          { delete ipacket_queues[i].front(); ipacket_queues[i].pop(); }
+          { ipacket_queues[i].front().delete_data(); ipacket_queues[i].pop(); }
         while( !opacket_queues[i].empty() )
-          { delete opacket_queues[i].front(); opacket_queues[i].pop(); }
+          { opacket_queues[i].front().delete_data(); opacket_queues[i].pop(); }
         }
     for( unsigned i = 0; i < slot_av.size(); ++i ) xdestroy_cond( &slot_av[i] );
     xdestroy_cond( &oav_or_exit ); xdestroy_mutex( &omutex );
@@ -125,19 +125,18 @@ public:
   void receive_packet( uint8_t * const data, const int size, const bool eom )
     {
     if( shared_retval() ) { delete[] data; return; } // discard packet on error
-    const Packet * const ipacket = new Packet( data, size, eom );
+    const Packet ipacket( data, size, eom );
     slot_tally.get_slot();			// wait for a free slot
     xlock( &imutex );
-    ipacket_queues[receive_worker_id].push( ipacket );
+    ipacket_queues[receive_id].push( ipacket );
     xbroadcast( &iav_or_eof );
     xunlock( &imutex );
-    if( eom && ++receive_worker_id >= num_workers ) receive_worker_id = 0;
+    if( eom && ++receive_id >= num_workers ) receive_id = 0;
     }
 
   // distribute a packet to a worker
-  const Packet * distribute_packet( const int worker_id )
+  Packet distribute_packet( const int worker_id )
     {
-    const Packet * ipacket = 0;
     xlock( &imutex );
     ++icheck_counter;
     while( ipacket_queues[worker_id].empty() && !eof )
@@ -147,63 +146,57 @@ public:
       }
     if( !ipacket_queues[worker_id].empty() )
       {
-      ipacket = ipacket_queues[worker_id].front();
+      const Packet ipacket = ipacket_queues[worker_id].front();
       ipacket_queues[worker_id].pop();
+      xunlock( &imutex ); slot_tally.leave_slot(); return ipacket;
       }
-    xunlock( &imutex );
-    if( ipacket ) slot_tally.leave_slot();
-    else			// no more packets
-      {
-      xlock( &omutex );		// notify muxer when last worker exits
-      if( --num_working == 0 ) xsignal( &oav_or_exit );
-      xunlock( &omutex );
-      }
-    return ipacket;
+    xunlock( &imutex );		// no more packets
+    xlock( &omutex );		// notify muxer when last worker exits
+    if( --num_working == 0 ) xsignal( &oav_or_exit );
+    xunlock( &omutex );
+    return Packet();
     }
 
-  // collect a packet from a worker, discard packet on error
-  void collect_packet( const Packet * const opacket, const int worker_id )
+  // make a packet with data received from a worker, discard data on error
+  void collect_packet( const int worker_id, uint8_t * const data,
+                       const int size, const bool eom )
     {
+    Packet opacket( data, size, eom );
     xlock( &omutex );
-    if( opacket->data )
+    if( data )
       while( opacket_queues[worker_id].size() >= out_slots )
         {
-        if( shared_retval() ) { delete opacket; goto done; }
+        if( shared_retval() ) { delete[] data; goto out; }
         xwait( &slot_av[worker_id], &omutex );
         }
     opacket_queues[worker_id].push( opacket );
-    if( worker_id == deliver_worker_id ) xsignal( &oav_or_exit );
-done:
-    xunlock( &omutex );
+    if( worker_id == deliver_id ) xsignal( &oav_or_exit );
+out: xunlock( &omutex );
     }
 
-  /* deliver a packet to muxer
-     if packet->eom, move to next queue
-     if packet data == 0, wait again */
-  const Packet * deliver_packet()
+  /* deliver packets to muxer
+     if opacket.eom, move to next queue
+     if opacket.data == 0, skip opacket */
+  void deliver_packets( std::vector< Packet > & packet_vector )
     {
-    const Packet * opacket = 0;
+    packet_vector.clear();
     xlock( &omutex );
     ++ocheck_counter;
-    while( true )
-      {
-      while( opacket_queues[deliver_worker_id].empty() && num_working > 0 )
+    do {
+      while( opacket_queues[deliver_id].empty() && num_working > 0 )
+        { ++owait_counter; xwait( &oav_or_exit, &omutex ); }
+      while( !opacket_queues[deliver_id].empty() )
         {
-        ++owait_counter;
-        xwait( &oav_or_exit, &omutex );
+        Packet opacket = opacket_queues[deliver_id].front();
+        opacket_queues[deliver_id].pop();
+        if( opacket_queues[deliver_id].size() + 1 == out_slots )
+          xsignal( &slot_av[deliver_id] );
+        if( opacket.eom && ++deliver_id >= num_workers ) deliver_id = 0;
+        if( opacket.data ) packet_vector.push_back( opacket );
         }
-      if( opacket_queues[deliver_worker_id].empty() ) break;
-      opacket = opacket_queues[deliver_worker_id].front();
-      opacket_queues[deliver_worker_id].pop();
-      if( opacket_queues[deliver_worker_id].size() + 1 == out_slots )
-        xsignal( &slot_av[deliver_worker_id] );
-      if( opacket->eom && ++deliver_worker_id >= num_workers )
-        deliver_worker_id = 0;
-      if( opacket->data ) break;
-      delete opacket; opacket = 0;
       }
+    while( packet_vector.empty() && num_working > 0 );
     xunlock( &omutex );
-    return opacket;
     }
 
   void add_sizes( const unsigned long long partial_in_size,
@@ -252,17 +245,29 @@ struct Worker_arg
   bool loose_trailing;
   bool testing;
   bool nocopy;		// avoid copying decompressed data when testing
+  void assign( Packet_courier & co, const Pretty_print & pp_,
+               Shared_retval & sr, const bool it, const bool lt,
+               const bool t, const bool nc )
+    { courier = &co; pp = &pp_; shared_retval = &sr; worker_id = 0;
+      ignore_trailing = it; loose_trailing = lt; testing = t; nocopy = nc; }
   };
 
 struct Splitter_arg
   {
-  struct Worker_arg worker_arg;
-  Worker_arg * worker_args;
-  pthread_t * worker_threads;
-  unsigned long long cfile_size;
-  int infd;
+  Worker_arg worker_arg;
+  Worker_arg * const worker_args;
+  pthread_t * const worker_threads;
+  const unsigned long long cfile_size;
+  const int infd;
   unsigned dictionary_size;	// returned by splitter to main thread
   int num_workers;		// returned by splitter to main thread
+  Splitter_arg( Packet_courier & co, const Pretty_print & pp_,
+                Shared_retval & sr, const bool it, const bool lt,
+                const bool t, const bool nc, Worker_arg * wa, pthread_t * wt,
+                const unsigned long long cfs, const int ifd, const int nw )
+    : worker_args( wa ), worker_threads( wt ), cfile_size( cfs ),
+      infd( ifd ), dictionary_size( 0 ), num_workers( nw )
+    { worker_arg.assign( co, pp_, sr, it, lt, t, nc ); }
   };
 
 
@@ -291,22 +296,22 @@ extern "C" void * dworker_s( void * arg )
 
   while( true )
     {
-    const Packet * const ipacket = courier.distribute_packet( worker_id );
-    if( !ipacket ) break;		// no more packets to process
+    Packet ipacket = courier.distribute_packet( worker_id );
+    if( !ipacket.data ) break;		// no more packets to process
 
     int written = 0;
     while( !draining )		// else discard trailing data or drain queue
       {
-      if( LZ_decompress_write_size( decoder ) > 0 && written < ipacket->size )
+      if( LZ_decompress_write_size( decoder ) > 0 && written < ipacket.size )
         {
-        const int wr = LZ_decompress_write( decoder, ipacket->data + written,
-                                            ipacket->size - written );
+        const int wr = LZ_decompress_write( decoder, ipacket.data + written,
+                                            ipacket.size - written );
         if( wr < 0 ) internal_error( "library error (LZ_decompress_write)." );
         written += wr;
-        if( written > ipacket->size )
+        if( written > ipacket.size )
           internal_error( "ipacket size exceeded in worker." );
         }
-      if( ipacket->eom && written == ipacket->size )
+      if( ipacket.eom && written == ipacket.size )
         LZ_decompress_finish( decoder );
       unsigned long long total_in = 0;	// detect empty member + corrupt header
       while( !draining )		// read and pack decompressed data
@@ -353,14 +358,13 @@ extern "C" void * dworker_s( void * arg )
           {
           if( !testing )			// make data packet
             {
-            const Packet * const opacket =
-              new Packet( ( new_pos > 0 ) ? new_data : 0, new_pos, eom );
-            courier.collect_packet( opacket, worker_id );
+            courier.collect_packet( worker_id, ( new_pos > 0 ) ? new_data : 0,
+                                    new_pos, eom );
             if( new_pos > 0 ) new_data = 0;
             }
           new_pos = 0;
           if( eom )
-            { LZ_decompress_reset( decoder );	// prepare for new member
+            { LZ_decompress_reset( decoder );	// prepare for next member
               break; }
           }
         if( rd == 0 )
@@ -369,9 +373,9 @@ extern "C" void * dworker_s( void * arg )
           if( total_in == size ) break; else total_in = size;
           }
         }
-      if( !ipacket->data || written == ipacket->size ) break;
+      if( !ipacket.data || written == ipacket.size ) break;
       }
-    delete ipacket;
+    ipacket.delete_data();
     }
 
   if( new_data ) delete[] new_data;
@@ -404,7 +408,7 @@ bool start_worker( const Worker_arg & worker_arg,
    packaging and distribution to workers.
    Start a worker per member up to a maximum of num_workers.
 */
-extern "C" void * dsplitter_s( void * arg )
+extern "C" void * dsplitter( void * arg )
   {
   Splitter_arg & tmp = *(Splitter_arg *)arg;
   const Worker_arg & worker_arg = tmp.worker_arg;
@@ -441,7 +445,7 @@ fail:
   if( size + hsize < min_member_size )
     { if( shared_retval.set_value( 2 ) ) show_file_error( pp.name(),
         ( size <= 0 ) ? "File ends unexpectedly at member header." :
-        "Input file is too short." ); goto fail; }
+        "Input file is truncated." ); goto fail; }
   const Lzip_header & header = *(const Lzip_header *)buffer;
   if( !header.check_magic() )
     { if( shared_retval.set_value( 2 ) )
@@ -546,16 +550,21 @@ fail:
 void muxer( Packet_courier & courier, const Pretty_print & pp,
             Shared_retval & shared_retval, const int outfd )
   {
+  std::vector< Packet > packet_vector;
   while( true )
     {
-    const Packet * const opacket = courier.deliver_packet();
-    if( !opacket ) break;	// queue is empty. all workers exited
+    courier.deliver_packets( packet_vector );
+    if( packet_vector.empty() ) break;	// queue is empty. all workers exited
 
-    if( shared_retval() == 0 &&
-        writeblock( outfd, opacket->data, opacket->size ) != opacket->size &&
-        shared_retval.set_value( 1 ) )
-      { pp(); show_error( "Write error", errno ); }
-    delete opacket;
+    for( unsigned i = 0; i < packet_vector.size(); ++i )
+      {
+      Packet & opacket = packet_vector[i];
+      if( shared_retval() == 0 &&
+          writeblock( outfd, opacket.data, opacket.size ) != opacket.size &&
+          shared_retval.set_value( 1 ) )
+        { pp(); show_error( wr_err_msg, errno ); }
+      opacket.delete_data();
+      }
     }
   }
 
@@ -590,23 +599,12 @@ int dec_stream( const unsigned long long cfile_size, const int num_workers,
   const bool nocopy = false;
 #endif
 
-  Splitter_arg splitter_arg;
-  splitter_arg.worker_arg.courier = &courier;
-  splitter_arg.worker_arg.pp = &pp;
-  splitter_arg.worker_arg.shared_retval = &shared_retval;
-  splitter_arg.worker_arg.worker_id = 0;
-  splitter_arg.worker_arg.ignore_trailing = cl_opts.ignore_trailing;
-  splitter_arg.worker_arg.loose_trailing = cl_opts.loose_trailing;
-  splitter_arg.worker_arg.testing = ( outfd < 0 );
-  splitter_arg.worker_arg.nocopy = nocopy;
-  splitter_arg.worker_args = worker_args;
-  splitter_arg.worker_threads = worker_threads;
-  splitter_arg.cfile_size = cfile_size;
-  splitter_arg.infd = infd;
-  splitter_arg.num_workers = num_workers;
+  Splitter_arg splitter_arg( courier, pp, shared_retval,
+    cl_opts.ignore_trailing, cl_opts.loose_trailing, outfd < 0, nocopy,
+    worker_args, worker_threads, cfile_size, infd, num_workers );
 
   pthread_t splitter_thread;
-  int errcode = pthread_create( &splitter_thread, 0, dsplitter_s, &splitter_arg );
+  int errcode = pthread_create( &splitter_thread, 0, dsplitter, &splitter_arg );
   if( errcode )
     { show_error( "Can't create splitter thread", errcode );
       delete[] worker_threads; delete[] worker_args; return 1; }

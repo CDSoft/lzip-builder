@@ -1,5 +1,5 @@
 /* Plzip - Massively parallel implementation of lzip
-   Copyright (C) 2009-2024 Antonio Diaz Diaz.
+   Copyright (C) 2009-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,9 +45,8 @@ int seek_read( const int fd, uint8_t * const buf, const int size,
 
 bool Lzip_index::check_header( const Lzip_header & header, const bool first )
   {
-  if( !header.check_magic() )
-    { error_ = bad_magic_msg; retval_ = 2; if( first ) bad_magic_ = true;
-      return false; }
+  if( header.check_magic() ) { if( first ) good_magic_ = true; }
+  else { error_ = bad_magic_msg; retval_ = 2; return false; }
   if( !header.check_version() )
     { error_ = bad_version( header.version() ); retval_ = 2; return false; }
   if( !isvalid_ds( header.dictionary_size() ) )
@@ -145,19 +144,19 @@ bool Lzip_index::skip_trailing_data( const int fd, unsigned long long & pos,
 
 Lzip_index::Lzip_index( const int infd, const Cl_options & cl_opts )
   : insize( lseek( infd, 0, SEEK_END ) ), retval_( 0 ), dictionary_size_( 0 ),
-    bad_magic_( false )
+    good_magic_( false )
   {
   if( insize < 0 )
     { set_errno_error( "Input file is not seekable: " ); return; }
+  Lzip_header header;
+  if( insize >= header.size &&
+      ( !read_header( infd, header, 0 ) ||
+        !check_header( header, true ) ) ) return;
   if( insize < min_member_size )
-    { error_ = "Input file is too short."; retval_ = 2; return; }
+    { error_ = "Input file is truncated."; retval_ = 2; return; }
   if( insize > INT64_MAX )
     { error_ = "Input file is too long (2^63 bytes or more).";
       retval_ = 2; return; }
-
-  Lzip_header header;
-  if( !read_header( infd, header, 0 ) ||
-      !check_header( header, true ) ) return;
 
   unsigned long long pos = insize;	// always points to a header or to EOF
   while( pos >= min_member_size )
