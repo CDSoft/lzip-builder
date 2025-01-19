@@ -1,0 +1,11 @@
+Changes in version 1.25:
+
+lzip now exits with error status 2 if any empty member is found in a
+multimember file.
+
+lzip now exits with error status 2 if the first byte of the LZMA stream is
+not 0.
+
+Options '--empty-error' and '--marking-error' have been removed.
+
+The chapter 'Syntax of command-line arguments' has been added to the manual.
