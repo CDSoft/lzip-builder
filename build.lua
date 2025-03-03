@@ -40,6 +40,7 @@ Note that only lzip is supported on Windows.
 
 local F = require "F"
 local targets = require "targets"
+local sys = require "sys"
 
 var "builddir" ".build"
 clean "$builddir"
@@ -55,7 +56,6 @@ rule "extract" {
 
 local cflags = {
     "-O3",
-    "-s",
     "-Ilzlib-$lzlib_version",
     [[-DPROGVERSION='"$progversion"']],
 }
@@ -64,9 +64,14 @@ local ldflags = {
     "-s",
 }
 
-build.cpp : add "cflags" { cflags } : add "ldflags" { ldflags }
+local function lto(target)
+    if target.os == "macos" then return {} end
+    return "-flto"
+end
+
+build.cpp : add "cflags" { cflags, lto(sys) } : add "ldflags" { ldflags, lto(sys) }
 targets : foreach(function(target)
-    build.zigcpp[target.name] : add "cflags" { cflags } : add "ldflags" { ldflags }
+    build.zigcpp[target.name] : add "cflags" { cflags, lto(target) } : add "ldflags" { ldflags, lto(target) }
 end)
 
 local host = {}         -- binaries for the current host compiled with cc/c++
@@ -179,9 +184,9 @@ acc(host) {
 }
 
 targets : foreach(function(target)
+    if target.os=="windows" then return end
     acc(cross[target.name]) {
-        target.os == "windows" and {}
-        or build.zigcpp[target.name]("$all"/target.name/"plzip"..target.exe) {
+        build.zigcpp[target.name]("$all"/target.name/"plzip"..target.exe) {
             progversion = "$plzip_version",
             plzip_sources,
             lzlib_sources,
@@ -235,9 +240,9 @@ acc(host) {
 }
 
 targets : foreach(function(target)
+    if target.os=="windows" then return end
     acc(cross[target.name]) {
-        target.os == "windows" and {}
-        or build.zigcpp[target.name]("$all"/target.name/"tarlz"..target.exe) {
+        build.zigcpp[target.name]("$all"/target.name/"tarlz"..target.exe) {
             progversion = "$tarlz_version",
             tarlz_sources,
             lzlib_sources,
@@ -302,9 +307,9 @@ acc(host) {
 }
 
 targets : foreach(function(target)
+    if target.os=="windows" then return end
     acc(cross[target.name]) {
-        target.os == "windows" and {}
-        or build.zigcpp[target.name]("$all"/target.name/"lziprecover") {
+        build.zigcpp[target.name]("$all"/target.name/"lziprecover") {
             progversion = "$lziprecover_version",
             lziprecover_sources,
             lzlib_sources,

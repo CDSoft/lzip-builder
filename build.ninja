@@ -64,7 +64,7 @@ build lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_
 
 rule Cpp-cc
   description = c++ $out
-  command = c++ -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = c++ -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule Cpp-ar
@@ -77,7 +77,7 @@ rule Cpp-so
 
 rule Cpp-ld
   description = c++ $out
-  command = c++ -s -o $out $in
+  command = c++ -s -flto -o $out $in
 
 build $builddir/tmp/$bin/lzip.tmp/lzip-$lzip_version/arg_parser.o: Cpp-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
@@ -99,7 +99,7 @@ build $bin/lzip: Cpp-ld $builddir/tmp/$bin/lzip.tmp/lzip-$lzip_version/arg_parse
 
 rule zigcpp-linux-x86_64-cc
   description = zig c++ -target x86_64-linux-gnu $out
-  command = zig c++ -target x86_64-linux-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target x86_64-linux-gnu -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule zigcpp-linux-x86_64-ar
@@ -112,7 +112,7 @@ rule zigcpp-linux-x86_64-so
 
 rule zigcpp-linux-x86_64-ld
   description = zig c++ -target x86_64-linux-gnu $out
-  command = zig c++ -target x86_64-linux-gnu -s -o $out $in
+  command = zig c++ -target x86_64-linux-gnu -s -flto -o $out $in
 
 build $builddir/tmp/$all/linux-x86_64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-x86_64-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
@@ -134,7 +134,7 @@ build $all/linux-x86_64/lzip: zigcpp-linux-x86_64-ld $builddir/tmp/$all/linux-x8
 
 rule zigcpp-linux-x86_64-musl-cc
   description = zig c++ -target x86_64-linux-musl $out
-  command = zig c++ -target x86_64-linux-musl -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target x86_64-linux-musl -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule zigcpp-linux-x86_64-musl-ar
@@ -147,7 +147,7 @@ rule zigcpp-linux-x86_64-musl-so
 
 rule zigcpp-linux-x86_64-musl-ld
   description = zig c++ -target x86_64-linux-musl $out
-  command = zig c++ -target x86_64-linux-musl -s -o $out $in
+  command = zig c++ -target x86_64-linux-musl -s -flto -o $out $in
 
 build $builddir/tmp/$all/linux-x86_64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-x86_64-musl-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
@@ -169,7 +169,7 @@ build $all/linux-x86_64-musl/lzip: zigcpp-linux-x86_64-musl-ld $builddir/tmp/$al
 
 rule zigcpp-linux-aarch64-cc
   description = zig c++ -target aarch64-linux-gnu $out
-  command = zig c++ -target aarch64-linux-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target aarch64-linux-gnu -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule zigcpp-linux-aarch64-ar
@@ -182,7 +182,7 @@ rule zigcpp-linux-aarch64-so
 
 rule zigcpp-linux-aarch64-ld
   description = zig c++ -target aarch64-linux-gnu $out
-  command = zig c++ -target aarch64-linux-gnu -s -o $out $in
+  command = zig c++ -target aarch64-linux-gnu -s -flto -o $out $in
 
 build $builddir/tmp/$all/linux-aarch64/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-aarch64-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
@@ -204,7 +204,7 @@ build $all/linux-aarch64/lzip: zigcpp-linux-aarch64-ld $builddir/tmp/$all/linux-
 
 rule zigcpp-linux-aarch64-musl-cc
   description = zig c++ -target aarch64-linux-musl $out
-  command = zig c++ -target aarch64-linux-musl -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target aarch64-linux-musl -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule zigcpp-linux-aarch64-musl-ar
@@ -217,7 +217,7 @@ rule zigcpp-linux-aarch64-musl-so
 
 rule zigcpp-linux-aarch64-musl-ld
   description = zig c++ -target aarch64-linux-musl $out
-  command = zig c++ -target aarch64-linux-musl -s -o $out $in
+  command = zig c++ -target aarch64-linux-musl -s -flto -o $out $in
 
 build $builddir/tmp/$all/linux-aarch64-musl/lzip.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-linux-aarch64-musl-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
@@ -239,7 +239,7 @@ build $all/linux-aarch64-musl/lzip: zigcpp-linux-aarch64-musl-ld $builddir/tmp/$
 
 rule zigcpp-macos-x86_64-cc
   description = zig c++ -target x86_64-macos-none $out
-  command = zig c++ -target x86_64-macos-none -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target x86_64-macos-none -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
   depfile = $out.d
 
 rule zigcpp-macos-x86_64-ar
@@ -274,7 +274,7 @@ build $all/macos-x86_64/lzip: zigcpp-macos-x86_64-ld $builddir/tmp/$all/macos-x8
 
 rule zigcpp-macos-aarch64-cc
   description = zig c++ -target aarch64-macos-none $out
-  command = zig c++ -target aarch64-macos-none -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target aarch64-macos-none -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
   depfile = $out.d
 
 rule zigcpp-macos-aarch64-ar
@@ -309,7 +309,7 @@ build $all/macos-aarch64/lzip: zigcpp-macos-aarch64-ld $builddir/tmp/$all/macos-
 
 rule zigcpp-windows-x86_64-cc
   description = zig c++ -target x86_64-windows-gnu $out
-  command = zig c++ -target x86_64-windows-gnu -c -MD -MF $depfile -O3 -s -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' $in -o $out
+  command = zig c++ -target x86_64-windows-gnu -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
   depfile = $out.d
 
 rule zigcpp-windows-x86_64-ar
@@ -322,7 +322,7 @@ rule zigcpp-windows-x86_64-so
 
 rule zigcpp-windows-x86_64-ld
   description = zig c++ -target x86_64-windows-gnu $out
-  command = zig c++ -target x86_64-windows-gnu -s -o $out $in
+  command = zig c++ -target x86_64-windows-gnu -s -flto -o $out $in
 
 build $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/arg_parser.cc
   progversion = $lzip_version
