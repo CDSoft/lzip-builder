@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <queue>
-#include <pthread.h>
 #include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <sys/stat.h>
@@ -250,7 +249,7 @@ public:
   };
 
 
-// send one ipacket with tar member metadata to courier
+// send one ipacket with tar member metadata to courier and print filename
 int add_member_lz( const char * const filename, const struct stat *,
                    const int flag, struct FTW * )
   {
@@ -300,26 +299,10 @@ extern "C" void * grouper( void * arg )
 
   for( int i = 0; i < cl_opts.parser.arguments(); ++i )	// parse command line
     {
-    const int code = cl_opts.parser.code( i );
-    const std::string & arg = cl_opts.parser.argument( i );
-    const char * filename = arg.c_str();
-    if( code == 'C' && chdir( filename ) != 0 )
-      { show_file_error( filename, chdir_msg, errno ); exit_fail_mt(); }
-    if( code ) continue;				// skip options
-    if( cl_opts.parser.argument( i ).empty() ) continue; // skip empty names
-    std::string deslashed;		// arg without trailing slashes
-    unsigned len = arg.size();
-    while( len > 1 && arg[len-1] == '/' ) --len;
-    if( len < arg.size() )
-      { deslashed.assign( arg, 0, len ); filename = deslashed.c_str(); }
-    if( Exclude::excluded( filename ) ) continue;	// skip excluded files
-    struct stat st;
-    if( lstat( filename, &st ) != 0 )	// filename from command line
-      { show_file_error( filename, cant_stat, errno ); set_error_status( 1 ); }
-    else if( nftw( filename, add_member_lz, 16,
-                   cl_opts.dereference ? 0 : FTW_PHYS ) != 0 )
-      exit_fail_mt();			// write error or OOM
-    else if( cl_opts.solidity == dsolid )	// end of group
+    const int ret = parse_cl_arg( cl_opts, i, add_member_lz );
+    if( ret == 0 ) continue;				// skip arg
+    if( ret == 1 ) exit_fail_mt();			// error
+    if( cl_opts.solidity == dsolid )			// end of group
       courier.receive_packet( new Ipacket );
     }
 

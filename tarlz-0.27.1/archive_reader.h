@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -65,9 +65,10 @@ public:
      If !OK, fills all the e_* variables. */
   virtual int read( uint8_t * const buf, const int size ) = 0;
 
-  int parse_records( Extended & extended, const Tar_header header,
-                     Resizable_buffer & rbuf, const char * const default_msg,
-                     const bool permissive );
+  int parse_records( Extended & extended,
+                     const Tar_header header, Resizable_buffer & rbuf,
+                     const char * const default_msg, const bool permissive,
+                     std::vector< std::string > * const msg_vecp = 0 );
   };
 
 
@@ -112,7 +113,7 @@ public:
   long long mdata_end() const { return mdata_end_; }
   bool at_member_end() const { return data_pos_ == mdata_end_; }
 
-  // Resets decoder and sets position to the start of the member.
+  // Reset decoder and set position to the start of the member.
   void set_member( const long i );
 
   int read( uint8_t * const buf, const int size );

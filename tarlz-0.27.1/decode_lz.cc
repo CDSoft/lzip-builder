@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@
 #include <cerrno>
 #include <cstdio>
 #include <queue>
-#include <pthread.h>
 #include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <utime.h>
@@ -41,7 +40,8 @@
 #include "common_mutex.h"
 #include "decode.h"
 
-/* When a problem is detected by any worker:
+/* Parallel decode does not skip; it exits at the first error.
+   When a problem is detected by any worker:
    - the worker requests mastership and returns.
    - the courier discards new packets received or collected.
    - the other workers return.
@@ -49,9 +49,9 @@
 
 namespace {
 
-const char * const other_msg = "Other worker found an error.";
+const char * const other_msg = "Another worker found an error.";
 
-/* line is preformatted and newline terminated except for prefix, error.
+/* line is preformatted and newline terminated except for prefix and errors.
    ok with an empty line is a no-op. */
 struct Packet			// member name and metadata or error message
   {
@@ -60,7 +60,7 @@ struct Packet			// member name and metadata or error message
   long member_id;	// lzip member containing the header of this tar member
   std::string line;	// member name and metadata ready to print, if any
   Status status;	// diagnostics and errors go to stderr
-  int errcode;		// for error
+  int errcode;		// for errors
   Packet( const long i, const char * const msg, const Status s, const int e )
     : member_id( i ), line( msg ), status( s ), errcode( e ) {}
   };
@@ -119,11 +119,12 @@ public:
       { xunlock( &omutex ); return master_id == worker_id; }
     if( error_member_id < 0 || error_member_id > member_id )
       error_member_id = member_id;
-    while( !mastership_granted() && ( worker_id != deliver_id ||
-           !opacket_queues[deliver_id].empty() ) )
+    while( !mastership_granted() &&
+           ( worker_id != deliver_id || !opacket_queues[deliver_id].empty() ) )
       xwait( &check_master, &omutex );
-    if( !mastership_granted() && worker_id == deliver_id &&
-        opacket_queues[deliver_id].empty() )
+    if( !mastership_granted() &&
+        // redundant conditions useful for the compiler
+        worker_id == deliver_id && opacket_queues[deliver_id].empty() )
       {
       master_id = worker_id;			// grant mastership
       for( int i = 0; i < num_workers; ++i )	// delete all packets
@@ -356,10 +357,9 @@ Trival extract_member_lz( const Cl_options & cl_opts,
     if( !courier.collect_packet( member_id, worker_id, rbuf(), Packet::ok ) )
       return Trival( other_msg, 0, 1 );
     }
-  /* Remove file before extraction to prevent following links.
-     Don't remove an empty dir because other thread may need it. */
-  if( typeflag != tf_directory ) std::remove( filename );
-  if( !make_dirs( filename ) )
+  struct stat st;
+  bool exists = lstat( filename, &st ) == 0;
+  if( !exists && !make_dirs( filename ) )
     {
     if( format_file_error( rbuf, filename, intdir_msg, errno ) &&
         !courier.collect_packet( member_id, worker_id, rbuf(), Packet::diag ) )
@@ -367,12 +367,16 @@ Trival extract_member_lz( const Cl_options & cl_opts,
     set_error_status( 1 );
     return skip_member_lz( ar, courier, extended, member_id, worker_id, typeflag );
     }
+  /* Remove file before extraction to prevent following links.
+     Don't remove an empty dir; another thread may need it. */
+  if( exists && ( typeflag != tf_directory || !S_ISDIR( st.st_mode ) ) )
+    { exists = false; std::remove( filename ); }
 
   switch( typeflag )
     {
     case tf_regular:
     case tf_hiperf:
-      outfd = open_outstream( filename, true, &rbuf );
+      outfd = open_outstream( filename, true, &rbuf, false );
       if( outfd < 0 )
         {
         if( verbosity >= 0 &&
@@ -399,11 +403,6 @@ Trival extract_member_lz( const Cl_options & cl_opts,
         }
       } break;
     case tf_directory:
-      {
-      struct stat st;
-      bool exists = stat( filename, &st ) == 0;
-      if( exists && !S_ISDIR( st.st_mode ) )
-        { exists = false; std::remove( filename ); }
       if( !exists && mkdir( filename, mode ) != 0 && errno != EEXIST )
         {
         if( format_file_error( rbuf, filename, mkdir_msg, errno ) &&
@@ -411,7 +410,7 @@ Trival extract_member_lz( const Cl_options & cl_opts,
           return Trival( other_msg, 0, 1 );
         set_error_status( 1 );
         }
-      } break;
+      break;
     case tf_chardev:
     case tf_blockdev:
       {
@@ -483,7 +482,7 @@ Trival extract_member_lz( const Cl_options & cl_opts,
           if( cl_opts.keep_damaged )
             { writeblock( outfd, buf, std::min( rest, (long long)ar.e_size() ) );
               close( outfd ); }
-          else { close( outfd ); std::remove( filename ); }
+          else { close( outfd ); unlink( filename ); }
           }
         return Trival( ar.e_msg(), ar.e_code(), ret );
         }
@@ -614,13 +613,18 @@ extern "C" void * dworker( void * arg )
         }
       if( typeflag == tf_extended )
         {
-        const char * msg = 0; int ret = 2;
+        std::vector< std::string > msg_vec;
+        const char * msg = 0; int ret = 2; bool good = false;
         if( prev_extended && !cl_opts.permissive ) msg = fv_msg3;
         else if( ( ret = ar.parse_records( extended, header, rbuf, extrec_msg,
-                            cl_opts.permissive ) ) != 0 ) msg = ar.e_msg();
+                     cl_opts.permissive, &msg_vec ) ) != 0 ) msg = ar.e_msg();
         else if( !extended.crc_present() && cl_opts.missing_crc )
           { msg = miscrc_msg; ret = 2; }
-        else { prev_extended = true; continue; }
+        else { prev_extended = true; good = true; }
+        for( unsigned j = 0; j < msg_vec.size(); ++j )
+          if( !courier.collect_packet( i, worker_id, msg_vec[j].c_str(),
+              Packet::diag ) ) { good = false; break; }
+        if( good ) continue;
         if( courier.request_mastership( i, worker_id ) )
           courier.collect_packet( i, worker_id, msg, ( ret == 1 ) ?
                                   Packet::error1 : Packet::error2 );
@@ -632,13 +636,18 @@ extern "C" void * dworker( void * arg )
 
       /* Skip members with an empty name in the ustar header. If there is an
          extended header in a previous lzip member, its worker will request
-         mastership. Else the ustar-only unnamed member will be ignored. */
+         mastership and the skip may fail here. Else the ustar-only unnamed
+         member will be ignored. */
+      std::string rpmsg;			// removed prefix
       Trival trival;
-      if( check_skip_filename( cl_opts, name_pending, extended.path().c_str() ) )
+      if( check_skip_filename( cl_opts, name_pending, extended.path().c_str(),
+                               -1, &rpmsg ) )
         trival = skip_member_lz( ar, courier, extended, i, worker_id, typeflag );
       else
         {
-        std::string rpmsg;
+        if( verbosity >= 0 && rpmsg.size() &&
+            !courier.collect_packet( i, worker_id, rpmsg.c_str(), Packet::prefix ) )
+          { trival = Trival( other_msg, 0, 1 ); goto fatal; }
         if( print_removed_prefix( extended.removed_prefix, &rpmsg ) &&
             !courier.collect_packet( i, worker_id, rpmsg.c_str(), Packet::prefix ) )
           { trival = Trival( other_msg, 0, 1 ); goto fatal; }
@@ -667,14 +676,14 @@ done:
   }
 
 
-/* Get from courier the processed and sorted packets, and print
-   the member lines on stdout or the diagnostics and errors on stderr.
+/* Get from courier the processed and sorted packets.
+   Print the member lines on stdout and the diagnostics and errors on stderr.
 */
-void muxer( const char * const archive_namep, Packet_courier & courier )
+int muxer( const char * const archive_namep, Packet_courier & courier )
   {
   std::vector< const Packet * > opacket_vector;
   int retval = 0;
-  while( retval == 0 )
+  while( retval == 0 )			// exit loop at first error packet
     {
     courier.deliver_packets( opacket_vector );
     if( opacket_vector.empty() ) break;	// queue is empty. all workers exited
@@ -698,7 +707,7 @@ void muxer( const char * const archive_namep, Packet_courier & courier )
     }
   if( retval == 0 && !courier.eoa_found() )	// no worker found EOA blocks
     { show_file_error( archive_namep, end_msg ); retval = 2; }
-  if( retval ) exit_fail_mt( retval );
+  return retval;
   }
 
 } // end namespace
@@ -715,8 +724,6 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
   Name_monitor
     name_monitor( ( cl_opts.program_mode == m_extract ) ? num_workers : 0 );
 
-  /* If an error happens after any threads have been started, exit must be
-     called before courier goes out of scope. */
   Packet_courier courier( num_workers, out_slots );
 
   Worker_arg * worker_args = new( std::nothrow ) Worker_arg[num_workers];
@@ -737,7 +744,7 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
       { show_error( "Can't create worker threads", errcode ); exit_fail_mt(); }
     }
 
-  muxer( ad.namep, courier );
+  int retval = muxer( ad.namep, courier );
 
   for( int i = num_workers - 1; i >= 0; --i )
     {
@@ -748,9 +755,8 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
   delete[] worker_threads;
   delete[] worker_args;
 
-  int retval = 0;
   if( close( ad.infd ) != 0 )
-    { show_file_error( ad.namep, eclosa_msg, errno ); retval = 1; }
+    { show_file_error( ad.namep, eclosa_msg, errno ); set_retval( retval, 1 ); }
 
   if( retval == 0 )
     for( int i = 0; i < cl_opts.parser.arguments(); ++i )

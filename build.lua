@@ -16,12 +16,12 @@
 -- For further information about lzip-builder you can visit
 -- https://github.com/CDSoft/lzip-builder
 
-var "release" "2025-01-19"
+var "release" "2025-03-04"
 
 var "lzlib_version"         "1.15"
 var "lzip_version"          "1.25"
 var "plzip_version"         "1.12"
-var "tarlz_version"         "0.26"
+var "tarlz_version"         "0.27.1"
 var "lziprecover_version"   "1.25"
 
 help.name "lzip-builder"
@@ -83,7 +83,7 @@ local cross = targets   -- binaries for all supported platforms compiled with zi
 section "lzlib"
 --------------------------------------------------------------------
 
-var "lzlib_url" "http://download.savannah.gnu.org/releases/lzip/lzlib/lzlib-$lzlib_version.tar.gz"
+var "lzlib_url" "http://download-mirror.savannah.gnu.org/releases/lzip/lzlib/lzlib-$lzlib_version.tar.gz"
 
 local lzlib_implicit_sources = F.map(F.prefix("lzlib-$lzlib_version/"), {
     "cbuffer.c",
@@ -110,7 +110,7 @@ build{lzlib_sources, lzlib_implicit_sources} { "extract",
 section "lzip"
 --------------------------------------------------------------------
 
-var "lzip_url" "http://download.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar.gz"
+var "lzip_url" "http://download-mirror.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar.gz"
 
 local lzip_sources = F.map(F.prefix("lzip-$lzip_version/"), {
     "arg_parser.cc",
@@ -151,7 +151,7 @@ end)
 section "plzip"
 --------------------------------------------------------------------
 
-var "plzip_url" "http://download.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_version.tar.lz"
+var "plzip_url" "http://download-mirror.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_version.tar.lz"
 
 local plzip_sources = F.map(F.prefix("plzip-$plzip_version/"), {
     "arg_parser.cc",
@@ -199,7 +199,7 @@ end)
 section "tarlz"
 --------------------------------------------------------------------
 
-var "tarlz_url" "http://download.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_version.tar.lz"
+var "tarlz_url" "http://download-mirror.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_version.tar.lz"
 
 local tarlz_sources = F.map(F.prefix("tarlz-$tarlz_version/"), {
     "archive_reader.cc",
@@ -255,7 +255,7 @@ end)
 section "lziprecover"
 --------------------------------------------------------------------
 
-var "lziprecover_url" "http://download.savannah.gnu.org/releases/lzip/lziprecover/lziprecover-$lziprecover_version.tar.lz"
+var "lziprecover_url" "http://download-mirror.savannah.gnu.org/releases/lzip/lziprecover/lziprecover-$lziprecover_version.tar.lz"
 
 local lziprecover_implicit_sources = F.map(F.prefix("lziprecover-$lziprecover_version/"), {
     "main_common.cc",

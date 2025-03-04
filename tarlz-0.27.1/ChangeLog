@@ -1,3 +1,25 @@
+2025-03-04  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.27.1 released.
+	* common_mutex.h: #include <pthread.h>. (Reported by Michal Górny).
+
+2025-02-28  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.27 released.
+	* common_decode.cc (format_member_name): Print seconds since epoch
+	  if date is out of range. Use at least 4 digits to print years.
+	  Print typeflag after the member name if unknown file type.
+	  (make_dirs): stat last dir before trying to create directories.
+	* decode.cc (skip_warn): Diagnose a corrupt tar header.
+	* extended.cc (Extended::parse): Diagnose a CRC mismatch.
+	  New argument 'msg_vecp' for multi-threaded diagnostics.
+	* Many small fixes and improvements to the code and the manual.
+	* tarlz.texi: New chapter 'Creating backups safely'.
+	  (Suggested by Aren Tyr).
+	* check.sh: Require lzip. Create .tar files from .tar.lz files.
+	  Limit '--mtime' test to safe dates. (Reported by Aren Tyr).
+	* testsuite: Add 5 new test files.
+
 2024-12-07  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.26 released.
@@ -73,8 +95,7 @@
 	* Lzlib 1.12 or newer is now required.
 	* decode.cc (decode): Skip members without name except when listing.
 	  decode_lz.cc (dworker): Likewise. (Reported by Florian Schmaus).
-	* New options '-z, --compress' and '-o, --output'.
-	* New option '--warn-newer'.
+	* New options '-z, --compress', '-o, --output', and '--warn-newer'.
 	* tarlz.texi (Invoking tarlz): Document concatenation to stdout.
 	* check.sh: Fix the '--diff' test on OS/2. (Reported by Elbert Pol).
 
@@ -97,10 +118,10 @@
 2020-07-30  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.17 released.
-	* New option '--mtime'.
-	* New option '-p, --preserve-permissions'.
+	* New options '--mtime' and '-p, --preserve-permissions'.
 	* Implement multi-threaded '-d, --diff'.
 	* list_lz.cc: Rename to decode_lz.cc.
+	  (decode_lz): Limit num_workers to number of members.
 	* main.cc (main): Report an error if a file name is empty or if the
 	  archive is specified more than once.
 	* lzip_index.cc: Improve messages for corruption in last header.
@@ -125,8 +146,7 @@
 2019-03-12  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.14 released.
-	* New option '--exclude'.
-	* New option '-h, --dereference'.
+	* New options '--exclude' and '-h, --dereference'.
 	* Short option name '-h' no longer means '--help'.
 	* create.cc: Implement '-A, --concatenate' and '-r, --append' to
 	  uncompressed archives and to standard output.
@@ -145,8 +165,7 @@
 	* create.cc (fill_headers): Fix use of st_rdev instead of st_dev.
 	* Save just numerical uid/gid if user or group not in database.
 	* extract.cc (format_member_name): Print devmajor and devminor.
-	* New option '-d, --diff'.
-	* New option '--ignore-ids'.
+	* New options '-d, --diff' and '--ignore-ids'.
 	* extract.cc: Fast '-t, --list' on seekable uncompressed archives.
 
 2019-02-13  Antonio Diaz Diaz  <antonio@gnu.org>
@@ -161,8 +180,7 @@
 2019-01-31  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.10 released.
-	* New option '--bsolid'.
-	* New option '-B, --data-size'.
+	* New options '--bsolid' and '-B, --data-size'.
 	* create.cc: Set ustar name to zero if extended header is used.
 
 2019-01-22  Antonio Diaz Diaz  <antonio@gnu.org>
@@ -185,8 +203,7 @@
 2018-11-23  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.7 released.
-	* New option '--keep-damaged'.
-	* New option '--no-solid'.
+	* New options '--keep-damaged' and '--no-solid'.
 	* create.cc (archive_write): Minimize dictionary size.
 	  Detect and skip archive in '-A', '-c', and '-r'.
 	* main.cc (show_version): Show the version of lzlib being used.
@@ -195,7 +212,7 @@
 
 	* Version 0.6 released.
 	* New option '-A, --concatenate'.
-	* Option '--ignore-crc' replaced with '--missing-crc'.
+	* Replace option '--ignore-crc' with '--missing-crc'.
 	* create.cc (add_member): Check that uid, gid, mtime, devmajor,
 	  and devminor are in ustar range.
 	* configure: Accept appending to CXXFLAGS; 'CXXFLAGS+=OPTIONS'.
@@ -220,11 +237,10 @@
 
 	* Version 0.3 released.
 	* Rename project to 'tarlz' from 'pmtar' (Poor Man's Tar).
-	* New option '-C, --directory'.
-	* Implement lzip compression of members at archive creation.
-	* New option '-r, --append'.
+	* New options '-C, --directory' and '-r, --append'.
 	* New options '--owner' and '--group'.
 	* New options '--asolid', '--dsolid', and '--solid'.
+	* Implement lzip compression of members at archive creation.
 	* Implement file appending to compressed archive.
 	* Implement transparent decompression of the archive.
 	* Implement skipping over damaged (un)compressed members.
@@ -242,7 +258,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2013-2024 Antonio Diaz Diaz.
+Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable, but just
 in case, you have unlimited permission to copy, distribute, and modify it.

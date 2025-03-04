@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,3 +45,8 @@ public:
 extern Archive_attrs archive_attrs;
 
 const char * const cant_stat = "Can't stat input file";
+
+// defined in create.cc
+int parse_cl_arg( const Cl_options & cl_opts, const int i,
+                  int (* add_memberp)( const char * const filename,
+                      const struct stat *, const int flag, struct FTW * ) );

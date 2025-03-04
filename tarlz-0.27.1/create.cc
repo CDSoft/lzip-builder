@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -231,7 +231,7 @@ bool store_name( const char * const filename, Extended & extended,
   }
 
 
-// add one tar member to the archive
+// add one tar member to the archive and print filename
 int add_member( const char * const filename, const struct stat *,
                 const int flag, struct FTW * )
   {
@@ -323,7 +323,7 @@ bool copy_file( const int infd, const int outfd, const char * const filename,
     if( max_size >= 0 ) rest -= size;
     const int rd = readblock( infd, buffer, size );
     if( rd != size && errno )
-      { show_file_error( filename, "Read error", errno ); error = true; break; }
+      { show_file_error( filename, rd_err_msg, errno ); error = true; break; }
     if( rd > 0 )
       {
       if( !writeblock_wrapper( outfd, buffer, rd ) ) { error = true; break; }
@@ -455,7 +455,7 @@ bool fill_headers( const char * const filename, Extended & extended,
         show_file_error( filename, "Wrong size reading symbolic link.\n"
           "Please, send a bug report to the maintainers of your filesystem, "
           "mentioning\n'wrong st_size of symbolic link'.\nSee "
-          "http://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_stat.h.html" );
+          "http://pubs.opengroup.org/onlinepubs/9799919799/basedefs/sys_stat.h.html" );
       set_error_status( 1 ); return false;
       }
     }
@@ -607,7 +607,7 @@ int concatenate( const Cl_options & cl_opts )
                                    "Not an appendable tar archive." );
         close( infd ); retval = 2; break; }
     if( !copy_file( infd, outfd, filename, size ) || close( infd ) != 0 )
-      { show_file_error( filename, "Error copying archive", errno );
+      { show_file_error( filename, "Error concatenating archive", errno );
         eoa_pending = false; retval = 1; break; }
     eoa_pending = true;
     if( verbosity >= 1 ) std::fprintf( stderr, "%s\n", filename );
@@ -618,6 +618,34 @@ int concatenate( const Cl_options & cl_opts )
   if( close( outfd ) != 0 && retval == 0 )
     { show_file_error( archive_namep, eclosa_msg, errno ); retval = 1; }
   return retval;
+  }
+
+
+// Return value: 0 = skip arg, 1 = error, 2 = arg done
+int parse_cl_arg( const Cl_options & cl_opts, const int i,
+                  int (* add_memberp)( const char * const filename,
+                      const struct stat *, const int flag, struct FTW * ) )
+  {
+  const int code = cl_opts.parser.code( i );
+  const std::string & arg = cl_opts.parser.argument( i );
+  const char * filename = arg.c_str();	// filename from command line
+  if( code == 'C' && chdir( filename ) != 0 )
+    { show_file_error( filename, chdir_msg, errno ); return 1; }
+  if( code ) return 0;				// skip options
+  if( cl_opts.parser.argument( i ).empty() ) return 0;	// skip empty names
+  std::string deslashed;		// filename without trailing slashes
+  unsigned len = arg.size();
+  while( len > 1 && arg[len-1] == '/' ) --len;
+  if( len < arg.size() )
+    { deslashed.assign( arg, 0, len ); filename = deslashed.c_str(); }
+  if( Exclude::excluded( filename ) ) return 0;	// skip excluded files
+  struct stat st;
+  if( lstat( filename, &st ) != 0 )
+    { show_file_error( filename, cant_stat, errno );
+      set_error_status( 1 ); return 0; }
+  if( nftw( filename, add_memberp, 16, cl_opts.dereference ? 0 : FTW_PHYS ) )
+    return 1;					// write error or OOM
+  return 2;
   }
 
 
@@ -698,27 +726,11 @@ int encode( const Cl_options & cl_opts )
   int retval = 0;
   for( int i = 0; i < cl_opts.parser.arguments(); ++i )	// parse command line
     {
-    const int code = cl_opts.parser.code( i );
-    const std::string & arg = cl_opts.parser.argument( i );
-    const char * filename = arg.c_str();
-    if( code == 'C' && chdir( filename ) != 0 )
-      { show_file_error( filename, chdir_msg, errno ); retval = 1; break; }
-    if( code ) continue;				// skip options
-    if( cl_opts.parser.argument( i ).empty() ) continue; // skip empty names
-    std::string deslashed;		// arg without trailing slashes
-    unsigned len = arg.size();
-    while( len > 1 && arg[len-1] == '/' ) --len;
-    if( len < arg.size() )
-      { deslashed.assign( arg, 0, len ); filename = deslashed.c_str(); }
-    if( Exclude::excluded( filename ) ) continue;	// skip excluded files
-    struct stat st;
-    if( lstat( filename, &st ) != 0 )	// filename from command line
-      { show_file_error( filename, cant_stat, errno ); set_error_status( 1 ); }
-    else if( ( retval = nftw( filename, add_member, 16,
-                              cl_opts.dereference ? 0 : FTW_PHYS ) ) != 0 )
-      break;					// write error
-    else if( encoder && cl_opts.solidity == dsolid && !archive_write( 0, 0 ) )
-      { retval = 1; break; }
+    const int ret = parse_cl_arg( cl_opts, i, add_member );
+    if( ret == 0 ) continue;				// skip arg
+    if( ret == 1 ) { retval = 1; break; }		// error
+    if( encoder && cl_opts.solidity == dsolid &&	// end of group
+        !archive_write( 0, 0 ) ) { retval = 1; break; }
     }
 
   if( retval == 0 )			// write End-Of-Archive records

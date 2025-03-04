@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,7 @@
 #include <cstdio>
 
 #include "tarlz.h"
+#include "common_mutex.h"
 
 
 const CRC32 crc32c( true );
@@ -58,9 +59,9 @@ long long parse_decimal( const char * const ptr, const char ** const tailp,
   }
 
 
-uint32_t parse_record_crc( const char * const ptr )
+unsigned parse_record_crc( const char * const ptr )
   {
-  uint32_t crc = 0;
+  unsigned crc = 0;
   for( int i = 0; i < 8; ++i )
     {
     crc <<= 4;
@@ -201,16 +202,25 @@ void Extended::calculate_sizes() const
 
 
 // print a diagnostic for each unknown keyword once per keyword
-void Extended::unknown_keyword( const char * const buf, const int size ) const
+void Extended::unknown_keyword( const char * const buf, const int size,
+                        std::vector< std::string > * const msg_vecp ) const
   {
+  // prevent two threads from modifying the list of keywords at the same time
+  static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
   int eq_pos = 0;				// position of '=' in buf
+
   while( eq_pos < size && buf[eq_pos] != '=' ) ++eq_pos;
   const std::string keyword( buf, eq_pos );
+  xlock( &mutex );
   for( unsigned i = 0; i < unknown_keywords.size(); ++i )
-    if( keyword == unknown_keywords[i] ) return;
+    if( keyword == unknown_keywords[i] ) { xunlock( &mutex ); return; }
   unknown_keywords.push_back( keyword );
-  print_error( 0, "Ignoring unknown extended header keyword '%s'",
-               keyword.c_str() );
+  xunlock( &mutex );
+  const char * str = "Ignoring unknown extended header keyword '%s'";
+  if( !msg_vecp ) print_error( 0, str, keyword.c_str() );
+  else
+    { msg_vecp->push_back( std::string() );
+      format_error( msg_vecp->back(), 0, str, keyword.c_str() ); }
   }
 
 
@@ -281,7 +291,8 @@ const char * Extended::full_size_error() const
 
 
 bool Extended::parse( const char * const buf, const int edsize,
-                      const bool permissive )
+                      const bool permissive,
+                      std::vector< std::string > * const msg_vecp )
   {
   reset(); full_size_ = -4;			// invalidate cached sizes
   for( int pos = 0; pos < edsize; )		// parse records
@@ -348,18 +359,22 @@ bool Extended::parse( const char * const buf, const int edsize,
       if( crc_present_ && !permissive ) return false;
       if( rsize != (int)crc_record.size() ) return false;
       crc_present_ = true;
-      const uint32_t stored_crc = parse_record_crc( tail + 10 );
-      const uint32_t computed_crc =
+      const unsigned stored_crc = parse_record_crc( tail + 10 );
+      const unsigned computed_crc =
         crc32c.windowed_crc( (const uint8_t *)buf, pos + rsize - 9, edsize );
       if( stored_crc != computed_crc )
         {
-        if( verbosity >= 2 )
-          std::fprintf( stderr, "CRC32-C = %08X\n", (unsigned)computed_crc );
+        if( verbosity < 1 ) return false;
+        const char * str = "CRC mismatch in extended records; stored %08X, computed %08X";
+        if( !msg_vecp ) print_error( 0, str, stored_crc, computed_crc );
+        else
+          { msg_vecp->push_back( std::string() );
+            format_error( msg_vecp->back(), 0, str, stored_crc, computed_crc ); }
         return false;
         }
       }
     else if( ( rest < 8 || std::memcmp( tail, "comment=", 8 ) != 0 ) &&
-             verbosity >= 1 ) unknown_keyword( tail, rest );
+             verbosity >= 1 ) unknown_keyword( tail, rest, msg_vecp );
     pos += rsize;
     }
   return true;

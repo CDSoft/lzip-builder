@@ -39,7 +39,7 @@ arg_parser.o     : arg_parser.h
 archive_reader.o : tarlz.h lzip_index.h archive_reader.h
 common.o         : tarlz.h
 common_decode.o  : tarlz.h arg_parser.h decode.h
-common_mutex.o   : common_mutex.h
+common_mutex.o   : tarlz.h common_mutex.h
 compress.o       : tarlz.h arg_parser.h
 create.o         : tarlz.h arg_parser.h create.h
 create_lz.o      : tarlz.h arg_parser.h common_mutex.h create.h
@@ -49,7 +49,7 @@ decode_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h \
 delete.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h
 delete_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h
 exclude.o        : tarlz.h
-extended.o       : tarlz.h
+extended.o       : tarlz.h common_mutex.h
 lzip_index.o     : tarlz.h lzip_index.h
 main.o           : tarlz.h arg_parser.h
 
@@ -135,42 +135,34 @@ dist : doc
 	  $(DISTNAME)/*.cc \
 	  $(DISTNAME)/testsuite/check.sh \
 	  $(DISTNAME)/testsuite/test.txt \
-	  $(DISTNAME)/testsuite/test.txt.tar \
 	  $(DISTNAME)/testsuite/test_bad1.txt.tar \
 	  $(DISTNAME)/testsuite/test_bad[12].txt \
 	  $(DISTNAME)/testsuite/rfoo \
 	  $(DISTNAME)/testsuite/rbar \
 	  $(DISTNAME)/testsuite/rbaz \
-	  $(DISTNAME)/testsuite/test3.tar \
-	  $(DISTNAME)/testsuite/test3_nn.tar \
-	  $(DISTNAME)/testsuite/test3_eoa[1-4].tar \
-	  $(DISTNAME)/testsuite/test3_gh[1-4].tar \
 	  $(DISTNAME)/testsuite/test3_bad[1-5].tar \
-	  $(DISTNAME)/testsuite/test3_dir.tar \
-	  $(DISTNAME)/testsuite/t155.tar \
-	  $(DISTNAME)/testsuite/t155_fv[1-3].tar \
-	  $(DISTNAME)/testsuite/eoa_blocks.tar \
 	  $(DISTNAME)/testsuite/em.lz \
-	  $(DISTNAME)/testsuite/test.txt.lz \
 	  $(DISTNAME)/testsuite/test.txt.tar.lz \
 	  $(DISTNAME)/testsuite/test_bad[12].txt.tar.lz \
 	  $(DISTNAME)/testsuite/test3.tar.lz \
 	  $(DISTNAME)/testsuite/test3_eoa[1-5].tar.lz \
-	  $(DISTNAME)/testsuite/test3_gh[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/test3_gh[1-8].tar.lz \
 	  $(DISTNAME)/testsuite/test3_nn.tar.lz \
 	  $(DISTNAME)/testsuite/test3_sm[1-4].tar.lz \
 	  $(DISTNAME)/testsuite/test3_bad[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/test3_crc.tar.lz \
+	  $(DISTNAME)/testsuite/test3_uk.tar.lz \
 	  $(DISTNAME)/testsuite/test3_dir.tar.lz \
 	  $(DISTNAME)/testsuite/test3_dot.tar.lz \
 	  $(DISTNAME)/testsuite/tar_in_tlz[12].tar.lz \
 	  $(DISTNAME)/testsuite/tlz_in_tar[12].tar \
 	  $(DISTNAME)/testsuite/ts_in_link.tar.lz \
 	  $(DISTNAME)/testsuite/t155.tar.lz \
-	  $(DISTNAME)/testsuite/t155_fv[1-6].tar.lz \
+	  $(DISTNAME)/testsuite/t155_fv[1-7].tar.lz \
 	  $(DISTNAME)/testsuite/dotdot[1-5].tar.lz \
 	  $(DISTNAME)/testsuite/ug32767.tar.lz \
 	  $(DISTNAME)/testsuite/ug32chars.tar.lz \
-	  $(DISTNAME)/testsuite/eoa_blocks.tar.lz
+	  $(DISTNAME)/testsuite/eoa_blocks.lz
 	rm -f $(DISTNAME)
 
 clean :

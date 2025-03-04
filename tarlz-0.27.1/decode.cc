@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,14 +48,18 @@ namespace {
 
 Resizable_buffer grbuf;
 
-bool skip_warn( const bool reset = false )	// avoid duplicate warnings
+bool skip_warn( const bool reset = false, const unsigned chksum = 0 )
   {
-  static bool skipping = false;
+  static bool skipping = false;		// avoid duplicate warnings
 
-  if( reset ) skipping = false;
-  else if( !skipping )
-    { skipping = true; show_error( "Skipping to next header." ); return true; }
-  return false;
+  if( reset ) { skipping = false; return false; }
+  if( skipping ) return false;
+  skipping = true;
+  if( chksum != 0 )
+    { if( verbosity < 1 ) show_error( "Corrupt header." );
+      else std::fprintf( stderr, "%s: Corrupt header: ustar chksum = %06o\n",
+                         program_name, chksum ); }
+  show_error( "Skipping to next header." ); return true;
   }
 
 
@@ -127,20 +131,20 @@ int extract_member( const Cl_options & cl_opts, Archive_reader & ar,
   int outfd = -1;
 
   if( !show_member_name( extended, header, 1, grbuf ) ) return 1;
-  // remove file (or empty dir) before extraction to prevent following links
-  std::remove( filename );
   if( !make_dirs( filename ) )
     {
     show_file_error( filename, intdir_msg, errno );
     set_error_status( 1 );
     return skip_member( ar, extended, typeflag );
     }
+  // remove file or empty dir before extraction to prevent following links
+  std::remove( filename );
 
   switch( typeflag )
     {
     case tf_regular:
     case tf_hiperf:
-      outfd = open_outstream( filename );
+      outfd = open_outstream( filename, true, 0, false );
       if( outfd < 0 )
         { set_error_status( 1 ); return skip_member( ar, extended, typeflag ); }
       break;
@@ -223,7 +227,7 @@ int extract_member( const Cl_options & cl_opts, Archive_reader & ar,
           if( cl_opts.keep_damaged )
             { writeblock( outfd, buf, std::min( rest, (long long)ar.e_size() ) );
               close( outfd ); }
-          else { close( outfd ); std::remove( filename ); }
+          else { close( outfd ); unlink( filename ); }
           }
         if( ar.fatal() ) return ret; else return 0;
         }
@@ -386,7 +390,7 @@ bool compare_file_contents( std::string & estr, std::string & ostr,
       const int rd = readblock( infd2, buf2, rsize2 );
       if( rd != rsize2 )
         {
-        if( errno ) format_file_error( estr, filename, "Read error", errno );
+        if( errno ) format_file_error( estr, filename, rd_err_msg, errno );
         else format_file_diff( ostr, filename, "EOF found in file" );
         diff = true;
         }
@@ -420,8 +424,8 @@ int decode( const Cl_options & cl_opts )
   const bool c_after_name = c_present &&
                             option_C_after_filename( cl_opts.parser );
   // save current working directory for sequential decoding
-  const int chdir_fd = c_after_name ? open( ".", O_RDONLY | O_DIRECTORY ) : -1;
-  if( c_after_name && chdir_fd < 0 )
+  const int cwd_fd = c_after_name ? open( ".", O_RDONLY | O_DIRECTORY ) : -1;
+  if( c_after_name && cwd_fd < 0 )
     { show_error( "Can't save current working directory", errno ); return 1; }
   if( c_present && !c_after_name )		// execute all -C options
     for( int i = 0; i < cl_opts.parser.arguments(); ++i )
@@ -464,8 +468,7 @@ int decode( const Cl_options & cl_opts )
         show_file_error( ad.namep, fv_msg1 );
         retval = 2; break;
         }
-      if( skip_warn() && verbosity >= 2 )
-        std::fprintf( stderr, "ustar chksum = %07o\n", ustar_chksum( header ) );
+      skip_warn( false, ustar_chksum( header ) );
       set_error_status( 2 ); continue;
       }
     skip_warn( true );				// reset warning
@@ -480,7 +483,7 @@ int decode( const Cl_options & cl_opts )
       if( ret != 0 )
         { show_file_error( ad.namep, ar.e_msg(), ar.e_code() );
           if( ar.fatal() ) { retval = ret; break; }
-          skip_warn(); set_error_status( ret ); }
+          set_error_status( ret ); }
       continue;
       }
     if( typeflag == tf_extended )
@@ -492,7 +495,7 @@ int decode( const Cl_options & cl_opts )
       if( ret != 0 )
         { show_file_error( ad.namep, ar.e_msg(), ar.e_code() );
           if( ar.fatal() ) { retval = ret; break; }
-          skip_warn(); extended.reset(); set_error_status( ret ); }
+          extended.reset(); set_error_status( ret ); }
       else if( !extended.crc_present() && cl_opts.missing_crc )
         { show_file_error( ad.namep, miscrc_msg ); retval = 2; break; }
       prev_extended = true; continue;
@@ -504,7 +507,7 @@ int decode( const Cl_options & cl_opts )
     try {
       // members without name are skipped except when listing
       if( check_skip_filename( cl_opts, name_pending, extended.path().c_str(),
-          chdir_fd ) ) retval = skip_member( ar, extended, typeflag );
+          cwd_fd ) ) retval = skip_member( ar, extended, typeflag );
       else
         {
         print_removed_prefix( extended.removed_prefix );

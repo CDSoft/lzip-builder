@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -212,7 +212,6 @@ int compress_archive( const Cl_options & cl_opts,
   Extended extended;			// metadata from extended records
   Resizable_buffer rbuf;		// headers and extended records buffer
   if( !rbuf.size() ) { show_error( mem_msg ); return 1; }
-  const char * const rderr_msg = "Read error";
   bool first_header = true;
 
   while( true )				// process one tar member per iteration
@@ -224,7 +223,7 @@ int compress_archive( const Cl_options & cl_opts,
         show_file_error( filename, "Archive is empty." );
         close( infd ); return 2; }
     if( rd != header_size )
-      { show_file_error( filename, rderr_msg, errno ); close( infd ); return 1; }
+      { show_file_error( filename, rd_err_msg, errno ); close( infd ); return 1; }
     first_header = false;
 
     const bool is_header = check_ustar_chksum( rbuf.u8() );
@@ -259,7 +258,8 @@ int compress_archive( const Cl_options & cl_opts,
       if( !rbuf.resize( total_header_size + bufsize ) )
         { show_file_error( filename, mem_msg ); close( infd ); return 1; }
       if( readblock( infd, rbuf.u8() + total_header_size, bufsize ) != bufsize )
-        { show_file_error( filename, rderr_msg, errno ); close( infd ); return 1; }
+        { show_file_error( filename, rd_err_msg, errno );
+          close( infd ); return 1; }
       total_header_size += bufsize;
       if( typeflag == tf_extended )	// do not parse global headers
         {
@@ -269,7 +269,7 @@ int compress_archive( const Cl_options & cl_opts,
         if( !rbuf.resize( total_header_size + header_size ) )
           { show_file_error( filename, mem_msg ); close( infd ); return 1; }
         if( readblock( infd, rbuf.u8() + total_header_size, header_size ) != header_size )
-          { show_file_error( filename, errno ? rderr_msg : end_msg, errno );
+          { show_file_error( filename, errno ? rd_err_msg : end_msg, errno );
             close( infd ); return errno ? 1 : 2; }
         if( !check_ustar_chksum( rbuf.u8() ) )
           { show_file_error( filename, bad_hdr_msg ); close( infd ); return 2; }

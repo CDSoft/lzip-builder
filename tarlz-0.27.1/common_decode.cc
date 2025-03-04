@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -117,53 +117,56 @@ bool block_is_zero( const uint8_t * const buf, const int size )
 bool format_member_name( const Extended & extended, const Tar_header header,
                          Resizable_buffer & rbuf, const bool long_format )
   {
-  if( long_format )
+  if( !long_format )
     {
-    format_mode_string( header, rbuf() );
-    const int group_string_len =
-      format_user_group_string( extended, header, rbuf() + mode_string_size );
-    int offset = mode_string_size + group_string_len;
-    const time_t mtime = extended.mtime().sec();
-    struct tm t;
-    if( !localtime_r( &mtime, &t ) )			// if local time fails
-      { time_t z = 0; if( !gmtime_r( &z, &t ) )		// use UTC, the epoch
-        { t.tm_year = 70; t.tm_mon = t.tm_hour = t.tm_min = 0; t.tm_mday = 1; } }
-    const Typeflag typeflag = (Typeflag)header[typeflag_o];
-    const bool islink = typeflag == tf_link || typeflag == tf_symlink;
-    const char * const link_string = !islink ? "" :
-                         ( ( typeflag == tf_link ) ? " link to " : " -> " );
-    // print "user/group size" in a field of width 19 with 8 or more for size
-    if( typeflag == tf_chardev || typeflag == tf_blockdev )
-      {
-      const unsigned devmajor = parse_octal( header + devmajor_o, devmajor_l );
-      const unsigned devminor = parse_octal( header + devminor_o, devminor_l );
-      const int width = std::max( 1,
-        std::max( 8, 19 - group_string_len ) - 1 - decimal_digits( devminor ) );
-      offset += snprintf( rbuf() + offset, rbuf.size() - offset, " %*u,%u",
-                          width, devmajor, devminor );
-      }
-    else
-      {
-      const int width = std::max( 8, 19 - group_string_len );
-      offset += snprintf( rbuf() + offset, rbuf.size() - offset, " %*llu",
-                          width, extended.file_size() );
-      }
-    for( int i = 0; i < 2; ++i )	// resize rbuf if not large enough
-      {
-      const int len = snprintf( rbuf() + offset, rbuf.size() - offset,
-                " %4d-%02u-%02u %02u:%02u %s%s%s\n",
-                1900 + t.tm_year, 1 + t.tm_mon, t.tm_mday, t.tm_hour,
-                t.tm_min, extended.path().c_str(), link_string,
-                islink ? extended.linkpath().c_str() : "" );
-      if( len + offset < (int)rbuf.size() ) break;
-      if( !rbuf.resize( len + offset + 1 ) ) return false;
-      }
+    if( !rbuf.resize( extended.path().size() + 2 ) ) return false;
+    snprintf( rbuf(), rbuf.size(), "%s\n", extended.path().c_str() );
+    return true;
+    }
+  format_mode_string( header, rbuf() );
+  const int group_string_len =
+    format_user_group_string( extended, header, rbuf() + mode_string_size );
+  int offset = mode_string_size + group_string_len;
+  const time_t mtime = extended.mtime().sec();
+  struct tm t;
+  char buf[32];	// if local time and UTC fail, use seconds since epoch
+  if( localtime_r( &mtime, &t ) || gmtime_r( &mtime, &t ) )
+    snprintf( buf, sizeof buf, "%04d-%02u-%02u %02u:%02u", 1900 + t.tm_year,
+              1 + t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min );
+  else snprintf( buf, sizeof buf, "%lld", extended.mtime().sec() );
+  const Typeflag typeflag = (Typeflag)header[typeflag_o];
+  const bool islink = typeflag == tf_link || typeflag == tf_symlink;
+  const char * const link_string = !islink ? "" :
+                       ( ( typeflag == tf_link ) ? " link to " : " -> " );
+  // print "user/group size" in a field of width 19 with 8 or more for size
+  if( typeflag == tf_chardev || typeflag == tf_blockdev )
+    {
+    const unsigned devmajor = parse_octal( header + devmajor_o, devmajor_l );
+    const unsigned devminor = parse_octal( header + devminor_o, devminor_l );
+    const int width = std::max( 1,
+      std::max( 8, 19 - group_string_len ) - 1 - decimal_digits( devminor ) );
+    offset += snprintf( rbuf() + offset, rbuf.size() - offset, " %*u,%u",
+                        width, devmajor, devminor );
     }
   else
     {
-    if( rbuf.size() < extended.path().size() + 2 &&
-        !rbuf.resize( extended.path().size() + 2 ) ) return false;
-    snprintf( rbuf(), rbuf.size(), "%s\n", extended.path().c_str() );
+    const int width = std::max( 8, 19 - group_string_len );
+    offset += snprintf( rbuf() + offset, rbuf.size() - offset, " %*llu",
+                        width, extended.file_size() );
+    }
+  for( int i = 0; i < 2; ++i )	// resize rbuf if not large enough
+    {
+    const int len = snprintf( rbuf() + offset, rbuf.size() - offset,
+              " %s %s%s%s\n", buf, extended.path().c_str(), link_string,
+              islink ? extended.linkpath().c_str() : "" );
+    if( len + offset < (int)rbuf.size() ) { offset += len; break; }
+    if( !rbuf.resize( len + offset + 1 ) ) return false;
+    }
+  if( rbuf()[0] == '?' )
+    {
+    if( !rbuf.resize( offset + 25 + 1 ) ) return false;
+    snprintf( rbuf() + offset - 1, rbuf.size() - offset,
+              ": Unknown file type 0x%02X\n", typeflag );
     }
   return true;
   }
@@ -183,9 +186,12 @@ bool show_member_name( const Extended & extended, const Tar_header header,
   }
 
 
+/* Return true if file must be skipped.
+   Execute -C options if cwd_fd >= 0 (diff or extract). */
 bool check_skip_filename( const Cl_options & cl_opts,
                           std::vector< char > & name_pending,
-                          const char * const filename, const int chdir_fd )
+                          const char * const filename, const int cwd_fd,
+                          std::string * const msgp )
   {
   static int c_idx = -1;		// parser index of last -C executed
   if( Exclude::excluded( filename ) ) return true;	// skip excluded files
@@ -197,18 +203,19 @@ bool check_skip_filename( const Cl_options & cl_opts,
     {
     if( cl_opts.parser.code( i ) == 'C' ) { chdir_pending = true; continue; }
     if( !nonempty_arg( cl_opts.parser, i ) ) continue;	// skip opts, empty names
-    std::string removed_prefix;
+    std::string removed_prefix;			// prefix of cl argument
     const char * const name = remove_leading_dotslash(
                  cl_opts.parser.argument( i ).c_str(), &removed_prefix );
     if( compare_prefix_dir( name, filename ) ||
         compare_tslash( name, filename ) )
       {
-      print_removed_prefix( removed_prefix );
+      print_removed_prefix( removed_prefix, msgp );
       skip = false; name_pending[i] = false;
-      if( chdir_pending && chdir_fd >= 0 )
+      // only serial decoder sets cwd_fd >= 0 to process -C options
+      if( chdir_pending && cwd_fd >= 0 )
         {
         if( c_idx > i )
-          { if( fchdir( chdir_fd ) != 0 )
+          { if( fchdir( cwd_fd ) != 0 )
             { show_error( "Error changing to initial working directory", errno );
               throw Chdir_error(); } c_idx = -1; }
         for( int j = c_idx + 1; j < i; ++j )
@@ -234,7 +241,11 @@ bool make_dirs( const std::string & name )
   while( i > 0 && name[i-1] != '/' ) --i;	// remove last component
   while( i > 0 && name[i-1] == '/' ) --i;	// remove more slashes
   const int dirsize = i;		// first slash before last component
+  struct stat st;
 
+  if( dirsize > 0 && lstat( std::string( name, 0, dirsize ).c_str(), &st ) == 0 )
+    { if( !S_ISDIR( st.st_mode ) ) { errno = ENOTDIR; return false; }
+      return true; }
   for( i = 0; i < dirsize; )	// if dirsize == 0, dirname is '/' or empty
     {
     while( i < dirsize && name[i] == '/' ) ++i;
@@ -244,7 +255,6 @@ bool make_dirs( const std::string & name )
       {
       const std::string partial( name, 0, i );
       const mode_t mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
-      struct stat st;
       if( lstat( partial.c_str(), &st ) == 0 )
         { if( !S_ISDIR( st.st_mode ) ) { errno = ENOTDIR; return false; } }
       else if( mkdir( partial.c_str(), mode ) != 0 && errno != EEXIST )

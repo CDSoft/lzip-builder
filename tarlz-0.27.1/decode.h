@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 */
 
 inline bool data_may_follow( const Typeflag typeflag )
-  { return typeflag <= 0 || typeflag >= 7; }
+  { return typeflag == tf_regular || typeflag == tf_hiperf; }
 
 inline bool uid_gid_in_range( const long long uid, const long long gid )
   { return uid == (long long)( (uid_t)uid ) &&
@@ -27,7 +27,7 @@ const char * const cantln_msg = "Can't %slink '%s' to '%s'";
 const char * const mkdir_msg = "Can't create directory";
 const char * const mknod_msg = "Can't create device node";
 const char * const mkfifo_msg = "Can't create FIFO file";
-const char * const uftype_msg = "%s: Unknown file type '%c', skipping.";
+const char * const uftype_msg = "%s: Unknown file type 0x%02X, skipping.";
 const char * const chown_msg = "Can't change file owner";
 
 mode_t get_umask();

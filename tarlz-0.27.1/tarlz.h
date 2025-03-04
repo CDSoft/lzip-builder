@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -120,7 +120,7 @@ public:
       }
     return true;
     }
-  char * operator()() { return p; }
+  char * operator()() { return p; }		// no need for operator[]
   const char * operator()() const { return p; }
   uint8_t * u8() { return (uint8_t *)p; }
   const uint8_t * u8() const { return (const uint8_t *)p; }
@@ -184,7 +184,8 @@ class Extended			// stores metadata from/for extended records
   mutable bool crc_present_;
 
   void calculate_sizes() const;
-  void unknown_keyword( const char * const buf, const int size ) const;
+  void unknown_keyword( const char * const buf, const int size,
+                        std::vector< std::string > * const msg_vecp = 0 ) const;
 
 public:
   static const std::string crc_record;
@@ -234,7 +235,8 @@ public:
 
   bool crc_present() const { return crc_present_; }
   bool parse( const char * const buf, const int edsize,
-              const bool permissive );
+              const bool permissive,
+              std::vector< std::string > * const msg_vecp = 0 );
   void fill_from_ustar( const Tar_header header );
   };
 
@@ -279,7 +281,7 @@ public:
     return crc ^ 0xFFFFFFFFU;
     }
 
-  // Calculates the crc of size bytes except a window of 8 bytes at pos
+  // compute the crc of size bytes except a window of 8 bytes at pos
   uint32_t windowed_crc( const uint8_t * const buffer, const int pos,
                          const int size ) const
     {
@@ -485,8 +487,9 @@ const char * const posix_lz_msg = "This does not look like a POSIX tar.lz archiv
 const char * const eclosa_msg = "Error closing archive";
 const char * const eclosf_msg = "Error closing file";
 const char * const nfound_msg = "Not found in archive.";
-const char * const seek_msg = "Seek error";
+const char * const rd_err_msg = "Read error";
 const char * const wr_err_msg = "Write error";
+const char * const seek_msg = "Seek error";
 const char * const chdir_msg = "Error changing working directory";
 const char * const intdir_msg = "Failed to create intermediate directory";
 
@@ -503,7 +506,8 @@ bool show_member_name( const Extended & extended, const Tar_header header,
                        const int vlevel, Resizable_buffer & rbuf );
 bool check_skip_filename( const Cl_options & cl_opts,
                           std::vector< char > & name_pending,
-                          const char * const filename, const int chdir_fd = -1 );
+                          const char * const filename, const int cwd_fd = -1,
+                          std::string * const msgp = 0 );
 bool make_dirs( const std::string & name );
 
 // defined in common_mutex.cc
@@ -596,6 +600,8 @@ int open_outstream( const std::string & name, const bool create = true,
 void show_error( const char * const msg, const int errcode = 0,
                  const bool help = false );
 bool format_error( Resizable_buffer & rbuf, const int errcode,
+                   const char * const format, ... );
+bool format_error( std::string & msg, const int errcode,
                    const char * const format, ... );
 void print_error( const int errcode, const char * const format, ... );
 void format_file_error( std::string & estr, const char * const filename,

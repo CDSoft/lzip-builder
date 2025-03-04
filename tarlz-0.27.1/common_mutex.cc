@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,8 +16,6 @@
 */
 
 #define _FILE_OFFSET_BITS 64
-
-#include <pthread.h>
 
 #include "tarlz.h"
 #include "common_mutex.h"
@@ -131,10 +129,10 @@ bool print_removed_prefix( const std::string & prefix,
     if( prefixes[i] == prefix )
       { xunlock( &mutex ); if( msgp ) msgp->clear(); return false; }
   prefixes.push_back( prefix );
+  xunlock( &mutex );
   std::string msg( "Removing leading '" ); msg += prefix;
-  msg += "' from member names.";
+  msg += "' from member names.";	// from archive or command line
   if( msgp ) *msgp = msg; else show_error( msg.c_str() );
-  xunlock( &mutex );	// put here to prevent mixing calls to show_error
   return true;
   }
 

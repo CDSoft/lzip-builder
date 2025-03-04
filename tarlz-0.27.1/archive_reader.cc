@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -82,10 +82,9 @@ Archive_descriptor::Archive_descriptor( const std::string & archive_name )
 
 
 int Archive_reader_base::parse_records( Extended & extended,
-                                        const Tar_header header,
-                                        Resizable_buffer & rbuf,
-                                        const char * const default_msg,
-                                        const bool permissive )
+                     const Tar_header header, Resizable_buffer & rbuf,
+                     const char * const default_msg, const bool permissive,
+                     std::vector< std::string > * const msg_vecp )
   {
   const long long edsize = parse_octal( header + size_o, size_l );
   const long long bufsize = round_up( edsize );
@@ -95,7 +94,7 @@ int Archive_reader_base::parse_records( Extended & extended,
   if( !rbuf.resize( bufsize ) ) return err( -1, mem_msg );
   e_msg_ = ""; e_code_ = 0;
   int retval = read( rbuf.u8(), bufsize );	// extended records buffer
-  if( retval == 0 && !extended.parse( rbuf(), edsize, permissive ) )
+  if( retval == 0 && !extended.parse( rbuf(), edsize, permissive, msg_vecp ) )
     retval = 2;
   if( retval && !*e_msg_ ) e_msg_ = default_msg;
   return retval;
@@ -156,16 +155,9 @@ int Archive_reader::read( uint8_t * const buf, const int size )
     const int rd = LZ_decompress_read( decoder, buf + sz, size - sz );
     if( rd < 0 )
       {
-      const unsigned long long old_pos = LZ_decompress_total_in_size( decoder );
       if( LZ_decompress_sync_to_member( decoder ) < 0 )
         internal_error( "library error (LZ_decompress_sync_to_member)." );
-      e_skip_ = true; set_error_status( 2 );
-      const unsigned long long new_pos = LZ_decompress_total_in_size( decoder );
-      // lzlib < 1.8 does not update total_in_size when syncing to member
-      if( new_pos >= old_pos && new_pos < LLONG_MAX )
-        return err( 2, "", 0, sz, true );
-      return err( -1, "Skipping to next header failed. "
-                      "Lzlib 1.8 or newer required.", 0, sz );
+      e_skip_ = true; set_error_status( 2 ); return err( 2, "", 0, sz, true );
       }
     if( rd == 0 && LZ_decompress_finished( decoder ) == 1 )
       { return err( -2, end_msg, 0, sz ); }

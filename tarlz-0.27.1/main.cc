@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2024 Antonio Diaz Diaz.
+   Copyright (C) 2013-2025 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -57,7 +57,7 @@ const char * const program_name = "tarlz";
 
 namespace {
 
-const char * const program_year = "2024";
+const char * const program_year = "2025";
 const char * invocation_name = program_name;		// default value
 
 
@@ -74,7 +74,7 @@ void show_help( const long num_online )
                "compressed archives.\n"
                "\nKeeping the alignment between tar members and lzip members has two\n"
                "advantages. It adds an indexed lzip layer on top of the tar archive, making\n"
-               "it possible to decode the archive safely in parallel. It also minimizes the\n"
+               "it possible to decode the archive safely in parallel. It also reduces the\n"
                "amount of data lost in case of corruption.\n"
                "\nThe tarlz file format is a safe POSIX-style backup format. In case of\n"
                "corruption, tarlz can extract all the undamaged members from the tar.lz\n"
@@ -457,17 +457,43 @@ bool format_error( Resizable_buffer & rbuf, const int errcode,
   for( int i = 0; i < 2; ++i )		// resize rbuf if not large enough
     {
     int len = snprintf( rbuf(), rbuf.size(), "%s: ", program_name );
-    if( len >= (int)rbuf.size() && !rbuf.resize( len + 1 ) ) break;
+    if( !rbuf.resize( len + 1 ) ) break;
     va_start( args, format );
     len += vsnprintf( rbuf() + len, rbuf.size() - len, format, args );
     va_end( args );
-    if( len >= (int)rbuf.size() && !rbuf.resize( len + 1 ) ) break;
-    if( errcode <= 0 ) rbuf()[len++] = '\n';
+    if( !rbuf.resize( len + 2 ) ) break;
+    if( errcode <= 0 ) { rbuf()[len++] = '\n'; rbuf()[len] = 0; }
     else len += snprintf( rbuf() + len, rbuf.size() - len, ": %s\n",
                           std::strerror( errcode ) );
-    if( len < (int)rbuf.size() || !rbuf.resize( len + 1 ) ) break;
+    if( len < (int)rbuf.size() ) return true;
+    if( i > 0 || !rbuf.resize( len + 1 ) ) break;
     }
-  return true;
+  return false;
+  }
+
+
+bool format_error( std::string & msg, const int errcode,
+                   const char * const format, ... )
+  {
+  if( verbosity < 0 ) return false;
+  Resizable_buffer rbuf;
+  if( !rbuf.size() ) return false;
+  va_list args;
+  for( int i = 0; i < 2; ++i )		// resize rbuf if not large enough
+    {
+    int len = snprintf( rbuf(), rbuf.size(), "%s: ", program_name );
+    if( !rbuf.resize( len + 1 ) ) break;
+    va_start( args, format );
+    len += vsnprintf( rbuf() + len, rbuf.size() - len, format, args );
+    va_end( args );
+    if( !rbuf.resize( len + 2 ) ) break;
+    if( errcode <= 0 ) { rbuf()[len++] = '\n'; rbuf()[len] = 0; }
+    else len += snprintf( rbuf() + len, rbuf.size() - len, ": %s\n",
+                          std::strerror( errcode ) );
+    if( len < (int)rbuf.size() ) { msg.assign( rbuf(), len ); return true; }
+    if( i > 0 || !rbuf.resize( len + 1 ) ) break;
+    }
+  return false;
   }
 
 

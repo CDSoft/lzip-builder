@@ -27,11 +27,11 @@
 
 ninja_required_version = 1.11.1
 
-release = 2025-01-19
+release = 2025-03-04
 lzlib_version = 1.15
 lzip_version = 1.25
 plzip_version = 1.12
-tarlz_version = 0.26
+tarlz_version = 0.27.1
 lziprecover_version = 1.25
 builddir = .build
 tmp = $builddir/tmp
@@ -46,7 +46,7 @@ rule extract
 # lzlib
 ######################################################################
 
-lzlib_url = http://download.savannah.gnu.org/releases/lzip/lzlib/lzlib-$lzlib_version.tar.gz
+lzlib_url = http://download-mirror.savannah.gnu.org/releases/lzip/lzlib/lzlib-$lzlib_version.tar.gz
 build lzlib-$lzlib_version/lzlib.c lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_version/decoder.c lzlib-$lzlib_version/encoder.c lzlib-$lzlib_version/encoder_base.c lzlib-$lzlib_version/fast_encoder.c: extract
   fmt = gzip
   opt = --exclude="doc/*" --exclude="testsuite/*"
@@ -56,7 +56,7 @@ build lzlib-$lzlib_version/lzlib.c lzlib-$lzlib_version/cbuffer.c lzlib-$lzlib_v
 # lzip
 ######################################################################
 
-lzip_url = http://download.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar.gz
+lzip_url = http://download-mirror.savannah.gnu.org/releases/lzip/lzip-$lzip_version.tar.gz
 build lzip-$lzip_version/arg_parser.cc lzip-$lzip_version/decoder.cc lzip-$lzip_version/encoder.cc lzip-$lzip_version/encoder_base.cc lzip-$lzip_version/fast_encoder.cc lzip-$lzip_version/list.cc lzip-$lzip_version/lzip_index.cc lzip-$lzip_version/main.cc: extract
   fmt = gzip
   opt = --exclude="doc/*" --exclude="testsuite/*"
@@ -346,7 +346,7 @@ build $all/windows-x86_64/lzip.exe: zigcpp-windows-x86_64-ld $builddir/tmp/$all/
 # plzip
 ######################################################################
 
-plzip_url = http://download.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_version.tar.lz
+plzip_url = http://download-mirror.savannah.gnu.org/releases/lzip/plzip/plzip-$plzip_version.tar.lz
 build plzip-$plzip_version/arg_parser.cc plzip-$plzip_version/compress.cc plzip-$plzip_version/dec_stdout.cc plzip-$plzip_version/dec_stream.cc plzip-$plzip_version/decompress.cc plzip-$plzip_version/list.cc plzip-$plzip_version/lzip_index.cc plzip-$plzip_version/main.cc: extract || $bin/lzip
   fmt = lzip
   opt = --exclude="doc/*" --exclude="testsuite/*"
@@ -475,7 +475,7 @@ build $all/macos-aarch64/plzip: zigcpp-macos-aarch64-ld $builddir/tmp/$all/macos
 # tarlz
 ######################################################################
 
-tarlz_url = http://download.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_version.tar.lz
+tarlz_url = http://download-mirror.savannah.gnu.org/releases/lzip/tarlz/tarlz-$tarlz_version.tar.lz
 build tarlz-$tarlz_version/archive_reader.cc tarlz-$tarlz_version/arg_parser.cc tarlz-$tarlz_version/common.cc tarlz-$tarlz_version/common_decode.cc tarlz-$tarlz_version/common_mutex.cc tarlz-$tarlz_version/compress.cc tarlz-$tarlz_version/create.cc tarlz-$tarlz_version/create_lz.cc tarlz-$tarlz_version/decode.cc tarlz-$tarlz_version/decode_lz.cc tarlz-$tarlz_version/delete.cc tarlz-$tarlz_version/delete_lz.cc tarlz-$tarlz_version/exclude.cc tarlz-$tarlz_version/extended.cc tarlz-$tarlz_version/lzip_index.cc tarlz-$tarlz_version/main.cc: extract || $bin/lzip
   fmt = lzip
   opt = --exclude="doc/*" --exclude="testsuite/*"
@@ -716,7 +716,7 @@ build $all/macos-aarch64/tarlz: zigcpp-macos-aarch64-ld $builddir/tmp/$all/macos
 # lziprecover
 ######################################################################
 
-lziprecover_url = http://download.savannah.gnu.org/releases/lzip/lziprecover/lziprecover-$lziprecover_version.tar.lz
+lziprecover_url = http://download-mirror.savannah.gnu.org/releases/lzip/lziprecover/lziprecover-$lziprecover_version.tar.lz
 build lziprecover-$lziprecover_version/alone_to_lz.cc lziprecover-$lziprecover_version/arg_parser.cc lziprecover-$lziprecover_version/byte_repair.cc lziprecover-$lziprecover_version/decoder.cc lziprecover-$lziprecover_version/dump_remove.cc lziprecover-$lziprecover_version/fec_create.cc lziprecover-$lziprecover_version/fec_repair.cc lziprecover-$lziprecover_version/gf8.cc lziprecover-$lziprecover_version/gf16.cc lziprecover-$lziprecover_version/list.cc lziprecover-$lziprecover_version/lunzcrash.cc lziprecover-$lziprecover_version/lzip_index.cc lziprecover-$lziprecover_version/main.cc lziprecover-$lziprecover_version/md5.cc lziprecover-$lziprecover_version/merge.cc lziprecover-$lziprecover_version/mtester.cc lziprecover-$lziprecover_version/nrep_stats.cc lziprecover-$lziprecover_version/range_dec.cc lziprecover-$lziprecover_version/recursive.cc lziprecover-$lziprecover_version/reproduce.cc lziprecover-$lziprecover_version/split.cc lziprecover-$lziprecover_version/main_common.cc: extract || $bin/lzip
   fmt = lzip
   opt = --exclude="doc/*" --exclude="testsuite/*"
