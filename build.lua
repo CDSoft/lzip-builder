@@ -14,7 +14,7 @@
 -- along with lzip-builder.  If not, see <https://www.gnu.org/licenses/>.
 --
 -- For further information about lzip-builder you can visit
--- https://github.com/CDSoft/lzip-builder
+-- https://codeberg.org/cdsoft/lzip-builder
 
 var "release" "2025-03-04"
 

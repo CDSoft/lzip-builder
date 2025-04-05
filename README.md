@@ -1,7 +1,7 @@
 # Lzip builder
 
 This repository just bundles [Lzip](https://www.nongnu.org/lzip/) into a Git project.
-It provides a [bang](https://github.com/CDSoft/bang) file to cross compile lzip for Linux, MacOS and Windows.
+It provides a [bang](https://codeberg.org/cdsoft/bang) file to cross compile lzip for Linux, MacOS and Windows.
 
 # Usage
 
