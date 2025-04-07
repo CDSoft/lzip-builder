@@ -25,6 +25,7 @@
 #   .build/bin/tarlz
 #   .build/bin/lziprecover
 
+builddir = .build
 ninja_required_version = 1.11.1
 
 release = 2025-03-04
@@ -33,7 +34,6 @@ lzip_version = 1.25
 plzip_version = 1.12
 tarlz_version = 0.27.1
 lziprecover_version = 1.25
-builddir = .build
 tmp = $builddir/tmp
 bin = $builddir/bin
 all = $builddir/all
@@ -341,6 +341,41 @@ build $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/lzip_ind
 build $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/main.o: zigcpp-windows-x86_64-cc lzip-$lzip_version/main.cc
   progversion = $lzip_version
 build $all/windows-x86_64/lzip.exe: zigcpp-windows-x86_64-ld $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/list.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/$all/windows-x86_64/lzip.exe.tmp/lzip-$lzip_version/main.o
+
+rule zigcpp-windows-aarch64-cc
+  description = zig c++ -target aarch64-windows-gnu $out
+  command = zig c++ -target aarch64-windows-gnu -c -MD -MF $depfile -O3 -Ilzlib-$lzlib_version -DPROGVERSION='"$progversion"' -flto $in -o $out
+  depfile = $out.d
+
+rule zigcpp-windows-aarch64-ar
+  description = zig ar $out
+  command = zig ar -crs $out $in
+
+rule zigcpp-windows-aarch64-so
+  description = zig c++ -target aarch64-windows-gnu $out
+  command = zig c++ -target aarch64-windows-gnu -shared -o $out $in
+
+rule zigcpp-windows-aarch64-ld
+  description = zig c++ -target aarch64-windows-gnu $out
+  command = zig c++ -target aarch64-windows-gnu -s -flto -o $out $in
+
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/arg_parser.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/decoder.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/decoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/encoder.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/encoder_base.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/encoder_base.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/fast_encoder.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/fast_encoder.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/list.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/list.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/lzip_index.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/lzip_index.cc
+  progversion = $lzip_version
+build $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/main.o: zigcpp-windows-aarch64-cc lzip-$lzip_version/main.cc
+  progversion = $lzip_version
+build $all/windows-aarch64/lzip.exe: zigcpp-windows-aarch64-ld $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/arg_parser.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/decoder.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/encoder.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/encoder_base.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/fast_encoder.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/list.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/lzip_index.o $builddir/tmp/$all/windows-aarch64/lzip.exe.tmp/lzip-$lzip_version/main.o
 
 ######################################################################
 # plzip
@@ -1053,13 +1088,15 @@ build $builddir/lzip-build-${release}-macos-aarch64.tar.gz: tar $all/macos-aarch
   prefix = $all/macos-aarch64
 build $builddir/lzip-build-${release}-windows-x86_64.tar.gz: tar $all/windows-x86_64/lzip.exe
   prefix = $all/windows-x86_64
+build $builddir/lzip-build-${release}-windows-aarch64.tar.gz: tar $all/windows-aarch64/lzip.exe
+  prefix = $all/windows-aarch64
 
 rule _builddir_README.md
   description = $out
   command = ( echo "# Lzip ${release}"; echo ""; echo "| Program | Version | Documentation |"; echo "| ------- | ------- | ------------- |"; echo "| lzip | [$lzip_version]($lzip_url) | <https://www.nongnu.org/lzip/> |"; echo "| plzip | [$plzip_version]($plzip_url) | <https://www.nongnu.org/lzip/plzip.html> |"; echo "| tarlz | [$tarlz_version]($tarlz_url) | <https://www.nongnu.org/lzip/tarlz.html> |"; echo "| lziprecover | [$lziprecover_version]($lziprecover_url) | <https://www.nongnu.org/lzip/lziprecover.html> |"; ) > $out
 
 build $builddir/README.md: _builddir_README.md
-build all: phony $builddir/lzip-build-${release}-linux-x86_64.tar.gz $builddir/lzip-build-${release}-linux-x86_64-musl.tar.gz $builddir/lzip-build-${release}-linux-aarch64.tar.gz $builddir/lzip-build-${release}-linux-aarch64-musl.tar.gz $builddir/lzip-build-${release}-macos-x86_64.tar.gz $builddir/lzip-build-${release}-macos-aarch64.tar.gz $builddir/lzip-build-${release}-windows-x86_64.tar.gz $builddir/README.md
+build all: phony $builddir/lzip-build-${release}-linux-x86_64.tar.gz $builddir/lzip-build-${release}-linux-x86_64-musl.tar.gz $builddir/lzip-build-${release}-linux-aarch64.tar.gz $builddir/lzip-build-${release}-linux-aarch64-musl.tar.gz $builddir/lzip-build-${release}-macos-x86_64.tar.gz $builddir/lzip-build-${release}-macos-aarch64.tar.gz $builddir/lzip-build-${release}-windows-x86_64.tar.gz $builddir/lzip-build-${release}-windows-aarch64.tar.gz $builddir/README.md
 
 ######################################################################
 # Installation
@@ -1119,4 +1156,4 @@ rule bang
   command = bang $in -o $out
   generator = true
 
-build build.ninja: bang build.lua
+build build.ninja: bang build.lua | .git/refs/tags
