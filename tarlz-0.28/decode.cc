@@ -22,19 +22,18 @@
 #include <cerrno>
 #include <cstdio>
 #include <fcntl.h>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
 #if !defined __FreeBSD__ && !defined __OpenBSD__ && !defined __NetBSD__ && \
     !defined __DragonFly__ && !defined __APPLE__ && !defined __OS2__
-#include <sys/sysmacros.h>	// for major, minor, makedev
+#include <sys/sysmacros.h>	// major, minor, makedev
 #else
-#include <sys/types.h>		// for major, minor, makedev
+#include <sys/types.h>		// major, minor, makedev
 #endif
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 #include "lzip_index.h"
 #include "archive_reader.h"
@@ -256,18 +255,10 @@ void format_file_diff( std::string & ostr, const char * const filename,
       { ostr += filename; ostr += ": "; ostr += msg; ostr += '\n'; } }
 
 
-bool option_C_present( const Arg_parser & parser )
+bool option_C_after_filename_or_T( const Arg_parser & parser )
   {
   for( int i = 0; i < parser.arguments(); ++i )
-    if( parser.code( i ) == 'C' ) return true;
-  return false;
-  }
-
-
-bool option_C_after_filename( const Arg_parser & parser )
-  {
-  for( int i = 0; i < parser.arguments(); ++i )
-    if( nonempty_arg( parser, i ) )
+    if( nonempty_arg( parser, i ) || parser.code( i ) == 'T' )
       while( ++i < parser.arguments() )
         if( parser.code( i ) == 'C' ) return true;
   return false;
@@ -419,10 +410,10 @@ int decode( const Cl_options & cl_opts )
   if( ad.name.size() && ad.indexed && ad.lzip_index.multi_empty() )
     { show_file_error( ad.namep, empty_msg ); close( ad.infd ); return 2; }
 
-  const bool c_present = option_C_present( cl_opts.parser ) &&
+  const bool c_present = cl_opts.option_C_present &&
                          cl_opts.program_mode != m_list;
   const bool c_after_name = c_present &&
-                            option_C_after_filename( cl_opts.parser );
+                            option_C_after_filename_or_T( cl_opts.parser );
   // save current working directory for sequential decoding
   const int cwd_fd = c_after_name ? open( ".", O_RDONLY | O_DIRECTORY ) : -1;
   if( c_after_name && cwd_fd < 0 )
@@ -435,21 +426,16 @@ int decode( const Cl_options & cl_opts )
       if( chdir( dir ) != 0 )
         { show_file_error( dir, chdir_msg, errno ); return 1; }
       }
-  /* Mark filenames to be compared, extracted or listed.
-     name_pending is of type char instead of bool to allow concurrent update. */
-  std::vector< char > name_pending( cl_opts.parser.arguments(), false );
-  for( int i = 0; i < cl_opts.parser.arguments(); ++i )
-    if( nonempty_arg( cl_opts.parser, i ) &&	// skip opts, empty names
-        !Exclude::excluded( cl_opts.parser.argument( i ).c_str() ) )
-      name_pending[i] = true;
+  // file names to be compared, extracted or listed
+  Cl_names cl_names( cl_opts.parser );
 
-  /* multi-threaded --list is faster even with 1 thread and 1 file in archive
-     but multi-threaded --diff and --extract probably need at least 2 of each.
-     CWD is not per-thread; multi-threaded decode can't be used if a
-     -C option appears after a file name in the command line. */
+  /* CWD is not per-thread; multithreaded decode can't be used if an option
+     -C appears in the command line after a file name or after an option -T.
+     Multithreaded --list is faster even with 1 thread and 1 file in archive
+     but multithreaded --diff and --extract probably need at least 2 of each. */
   if( cl_opts.num_workers > 0 && !c_after_name && ad.indexed &&
       ad.lzip_index.members() >= 2 )	// 2 lzip members may be 1 file + EOA
-    return decode_lz( cl_opts, ad, name_pending );
+    return decode_lz( cl_opts, ad, cl_names );
 
   Archive_reader ar( ad );		// serial reader
   Extended extended;			// metadata from extended records
@@ -506,7 +492,7 @@ int decode( const Cl_options & cl_opts )
 
     try {
       // members without name are skipped except when listing
-      if( check_skip_filename( cl_opts, name_pending, extended.path().c_str(),
+      if( check_skip_filename( cl_opts, cl_names, extended.path().c_str(),
           cwd_fd ) ) retval = skip_member( ar, extended, typeflag );
       else
         {
@@ -528,11 +514,8 @@ int decode( const Cl_options & cl_opts )
 
   if( close( ad.infd ) != 0 && retval == 0 )
     { show_file_error( ad.namep, eclosa_msg, errno ); retval = 1; }
+  if( cwd_fd >= 0 ) close( cwd_fd );
 
-  if( retval == 0 )
-    for( int i = 0; i < cl_opts.parser.arguments(); ++i )
-      if( nonempty_arg( cl_opts.parser, i ) && name_pending[i] )
-        { show_file_error( cl_opts.parser.argument( i ).c_str(), nfound_msg );
-          retval = 1; }
+  if( retval == 0 && cl_names.names_remain( cl_opts.parser ) ) retval = 1;
   return final_exit_status( retval, cl_opts.program_mode != m_diff );
   }

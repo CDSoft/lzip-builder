@@ -20,24 +20,27 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <sys/stat.h>
 #if !defined __FreeBSD__ && !defined __OpenBSD__ && !defined __NetBSD__ && \
     !defined __DragonFly__ && !defined __APPLE__ && !defined __OS2__
-#include <sys/sysmacros.h>	// for major, minor
+#include <sys/sysmacros.h>	// major, minor
 #else
-#include <sys/types.h>		// for major, minor
+#include <sys/types.h>		// major, minor
 #endif
 #include <ftw.h>
 #include <grp.h>
 #include <pwd.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
+#include "common_mutex.h"	// for fill_headers
 #include "create.h"
 
+#ifndef FTW_XDEV
+#define FTW_XDEV FTW_MOUNT
+#endif
 
 Archive_attrs archive_attrs;	// archive attributes at time of creation
 
@@ -52,10 +55,11 @@ Resizable_buffer grbuf;				// extended header + data
 int goutfd = -1;
 
 
-bool option_C_after_relative_filename( const Arg_parser & parser )
+bool option_C_after_relative_filename_or_T( const Arg_parser & parser )
   {
   for( int i = 0; i < parser.arguments(); ++i )
-    if( nonempty_arg( parser, i ) && parser.argument( i )[0] != '/' )
+    if( ( nonempty_arg( parser, i ) && parser.argument( i )[0] != '/' ) ||
+        parser.code( i ) == 'T' )
       while( ++i < parser.arguments() )
         if( parser.code( i ) == 'C' ) return true;
   return false;
@@ -149,8 +153,8 @@ long long check_uncompressed_appendable( const int fd, const bool remove_eoa )
       if( prev_extended ) return -1;
       const long long edsize = parse_octal( header + size_o, size_l );
       const long long bufsize = round_up( edsize );
-      if( edsize <= 0 || edsize >= 1LL << 33 || bufsize > max_edata_size )
-        return -1;			// overflow or no extended data
+      if( bufsize > extended.max_edata_size || edsize >= 1LL << 33 ||
+          edsize <= 0 ) return -1;	// overflow or no extended data
       if( !rbuf.resize( bufsize ) ) return -2;
       if( readblock( fd, rbuf.u8(), bufsize ) != bufsize )
         return -1;
@@ -239,7 +243,9 @@ int add_member( const char * const filename, const struct stat *,
   long long file_size;
   Extended extended;		// metadata for extended records
   Tar_header header;
-  if( !fill_headers( filename, extended, header, file_size, flag ) ) return 0;
+  std::string estr;
+  if( !fill_headers( estr, filename, extended, header, file_size, flag ) )
+    { if( estr.size() ) std::fputs( estr.c_str(), stderr ); return 0; }
   print_removed_prefix( extended.removed_prefix );
   const int infd = file_size ? open_instream( filename ) : -1;
   if( file_size && infd < 0 ) { set_error_status( 1 ); return 0; }
@@ -264,10 +270,8 @@ int add_member( const char * const filename, const struct stat *,
       const int rd = readblock( infd, buf, size );
       rest -= rd;
       if( rd != size )
-        {
-        show_atpos_error( filename, file_size - rest, false );
-        close( infd ); return 1;
-        }
+        { show_atpos_error( filename, file_size - rest, false );
+          close( infd ); return 1; }
       if( rest == 0 )				// last read
         {
         const int rem = file_size % header_size;
@@ -290,6 +294,56 @@ int add_member( const char * const filename, const struct stat *,
   }
 
 
+int call_nftw( const Cl_options & cl_opts, const char * const filename,
+               const int flags,
+               int (* add_memberp)( const char * const filename,
+                   const struct stat *, const int flag, struct FTW * ) )
+  {
+  if( Exclude::excluded( filename ) ) return 0;	// skip excluded files
+  struct stat st;
+  if( lstat( filename, &st ) != 0 )
+    { show_file_error( filename, cant_stat, errno ); set_error_status( 1 );
+      return 0; }
+  if( ( cl_opts.recursive && nftw( filename, add_memberp, 16, flags ) != 0 ) ||
+      ( !cl_opts.recursive && add_memberp( filename, &st, 0, 0 ) != 0 ) )
+    return 1;					// write error or OOM
+  return 2;
+  }
+
+
+int read_t_list( const Cl_options & cl_opts, const char * const cl_filename,
+                 const int flags,
+                 int (* add_memberp)( const char * const filename,
+                     const struct stat *, const int flag, struct FTW * ) )
+  {
+  const bool from_stdin = cl_filename[0] == '-' && cl_filename[1] == 0;
+  const char * const filename = from_stdin ? "(stdin)" : cl_filename;
+  FILE * f = from_stdin ? stdin : std::fopen( cl_filename, "r" );
+  if( !f ) { show_file_error( filename, rd_open_msg, errno ); return 1; }
+  enum { max_filename_size = 4096, bufsize = max_filename_size + 2 };
+  char buf[bufsize];
+  bool error = false;
+  while( std::fgets( buf, bufsize, f ) )	// until error or EOF
+    {
+    int len = std::strlen( buf );
+    if( len <= 0 || buf[len-1] != '\n' )
+      { show_file_error( filename, ( len < bufsize - 1 ) ?
+          "File name in list is unterminated or contains NUL bytes." :
+          "File name too long in list." ); error = true; break; }
+    do { buf[--len] = 0; }			// remove terminating newline
+    while( len > 1 && buf[len-1] == '/' );	// and trailing slashes
+    if( len <= 0 ) continue;			// empty name
+    const int ret = call_nftw( cl_opts, buf, flags, add_memberp );
+    if( ret == 0 ) continue;			// skip filename
+    if( ret == 1 ) { error = true; break; }	// write error or OOM
+    }
+  if( error | std::ferror( f ) | !std::feof( f ) |
+      ( f != stdin && std::fclose( f ) != 0 ) )
+    { if( !error ) show_file_error( filename, rd_err_msg, errno ); return 1; }
+  return 2;
+  }
+
+
 bool check_tty_out( const char * const archive_namep, const int outfd,
                     const bool to_stdout )
   {
@@ -304,15 +358,15 @@ bool check_tty_out( const char * const archive_namep, const int outfd,
 } // end namespace
 
 
-// infd and outfd can refer to the same file if copying to a lower file
-// position or if source and destination blocks don't overlap.
-// max_size < 0 means no size limit.
+/* infd and outfd can refer to the same file if copying to a lower file
+   position or if source and destination blocks don't overlap.
+   max_size < 0 means no size limit. */
 bool copy_file( const int infd, const int outfd, const char * const filename,
                 const long long max_size )
   {
   const long long buffer_size = 65536;
   // remaining number of bytes to copy
-  long long rest = ( max_size >= 0 ) ? max_size : buffer_size;
+  long long rest = (max_size >= 0) ? max_size : buffer_size;
   long long copied_size = 0;
   uint8_t * const buffer = new uint8_t[buffer_size];
   bool error = false;
@@ -387,16 +441,17 @@ const char * remove_leading_dotslash( const char * const filename,
 
 
 // set file_size != 0 only for regular files
-bool fill_headers( const char * const filename, Extended & extended,
-                   Tar_header header, long long & file_size, const int flag )
+bool fill_headers( std::string & estr, const char * const filename,
+                   Extended & extended, Tar_header header,
+                   long long & file_size, const int flag )
   {
   struct stat st;
   if( hstat( filename, &st, gcl_opts->dereference ) != 0 )
-    { show_file_error( filename, cant_stat, errno );
+    { format_file_error( estr, filename, cant_stat, errno );
       set_error_status( 1 ); return false; }
   if( archive_attrs.is_the_archive( st ) )
-    { show_file_error( archive_namep, "Archive can't contain itself; not dumped." );
-      return false; }
+    { format_file_error( estr, archive_namep,
+        "Archive can't contain itself; not dumped." ); return false; }
   init_tar_header( header );
   bool force_extended_name = false;
 
@@ -421,7 +476,7 @@ bool fill_headers( const char * const filename, Extended & extended,
     {
     typeflag = tf_directory;
     if( flag == FTW_DNR )
-      { show_file_error( filename, "Can't open directory", errno );
+      { format_file_error( estr, filename, "Can't open directory", errno );
         set_error_status( 1 ); return false; }
     }
   else if( S_ISLNK( mode ) )
@@ -450,9 +505,9 @@ bool fill_headers( const char * const filename, Extended & extended,
     if( sz != st.st_size )
       {
       if( sz < 0 )
-        show_file_error( filename, "Error reading symbolic link", errno );
+        format_file_error( estr, filename, "Error reading symbolic link", errno );
       else
-        show_file_error( filename, "Wrong size reading symbolic link.\n"
+        format_file_error( estr, filename, "Wrong size reading symbolic link.\n"
           "Please, send a bug report to the maintainers of your filesystem, "
           "mentioning\n'wrong st_size of symbolic link'.\nSee "
           "http://pubs.opengroup.org/onlinepubs/9799919799/basedefs/sys_stat.h.html" );
@@ -464,28 +519,45 @@ bool fill_headers( const char * const filename, Extended & extended,
     typeflag = S_ISCHR( mode ) ? tf_chardev : tf_blockdev;
     if( (unsigned)major( st.st_rdev ) >= 2 << 20 ||
         (unsigned)minor( st.st_rdev ) >= 2 << 20 )
-      { show_file_error( filename, "devmajor or devminor is larger than 2_097_151." );
+      { format_file_error( estr, filename,
+                           "devmajor or devminor is larger than 2_097_151." );
         set_error_status( 1 ); return false; }
     print_octal( header + devmajor_o, devmajor_l - 1, major( st.st_rdev ) );
     print_octal( header + devminor_o, devminor_l - 1, minor( st.st_rdev ) );
     }
   else if( S_ISFIFO( mode ) ) typeflag = tf_fifo;
-  else { show_file_error( filename, "Unknown file type." );
+  else { format_file_error( estr, filename, "Unknown file type." );
          set_error_status( 2 ); return false; }
   header[typeflag_o] = typeflag;
 
-  if( uid == (long long)( (uid_t)uid ) )	// get name if uid is in range
-    { const struct passwd * const pw = getpwuid( uid );
-      if( pw && pw->pw_name )
-        std::strncpy( (char *)header + uname_o, pw->pw_name, uname_l - 1 ); }
+  // prevent two threads from accessing a name database at the same time
+  if( uid >= 0 && uid == (long long)( (uid_t)uid ) )	// get name if in range
+    { static pthread_mutex_t uid_mutex = PTHREAD_MUTEX_INITIALIZER;
+      static long long cached_uid = -1;
+      static std::string cached_pw_name;
+      xlock( &uid_mutex );
+      if( uid != cached_uid )
+        { const struct passwd * const pw = getpwuid( uid );
+          if( !pw || !pw->pw_name || !pw->pw_name[0] ) goto no_uid;
+          cached_uid = uid; cached_pw_name = pw->pw_name; }
+      std::strncpy( (char *)header + uname_o, cached_pw_name.c_str(), uname_l - 1 );
+no_uid: xunlock( &uid_mutex ); }
+  if( gid >= 0 && gid == (long long)( (gid_t)gid ) )	// get name if in range
+    { static pthread_mutex_t gid_mutex = PTHREAD_MUTEX_INITIALIZER;
+      static long long cached_gid = -1;
+      static std::string cached_gr_name;
+      xlock( &gid_mutex );
+      if( gid != cached_gid )
+        { const struct group * const gr = getgrgid( gid );
+          if( !gr || !gr->gr_name || !gr->gr_name[0] ) goto no_gid;
+          cached_gid = gid; cached_gr_name = gr->gr_name; }
+      std::strncpy( (char *)header + gname_o, cached_gr_name.c_str(), gname_l - 1 );
+no_gid: xunlock( &gid_mutex ); }
 
-  if( gid == (long long)( (gid_t)gid ) )	// get name if gid is in range
-    { const struct group * const gr = getgrgid( gid );
-      if( gr && gr->gr_name )
-        std::strncpy( (char *)header + gname_o, gr->gr_name, gname_l - 1 ); }
-
-  file_size = ( typeflag == tf_regular && st.st_size > 0 &&
-                st.st_size <= max_file_size ) ? st.st_size : 0;
+  if( typeflag == tf_regular && st.st_size > extended.max_file_size )
+    { format_file_error( estr, filename, large_file_msg );
+      set_error_status( 1 ); return false; }
+  file_size = ( typeflag == tf_regular && st.st_size > 0 ) ? st.st_size : 0;
   if( file_size >= 1LL << 33 )
     { extended.file_size( file_size ); force_extended_name = true; }
   else print_octal( header + size_o, size_l - 1, file_size );
@@ -629,23 +701,25 @@ int parse_cl_arg( const Cl_options & cl_opts, const int i,
   const int code = cl_opts.parser.code( i );
   const std::string & arg = cl_opts.parser.argument( i );
   const char * filename = arg.c_str();	// filename from command line
-  if( code == 'C' && chdir( filename ) != 0 )
-    { show_file_error( filename, chdir_msg, errno ); return 1; }
-  if( code ) return 0;				// skip options
-  if( cl_opts.parser.argument( i ).empty() ) return 0;	// skip empty names
-  std::string deslashed;		// filename without trailing slashes
-  unsigned len = arg.size();
-  while( len > 1 && arg[len-1] == '/' ) --len;
-  if( len < arg.size() )
-    { deslashed.assign( arg, 0, len ); filename = deslashed.c_str(); }
-  if( Exclude::excluded( filename ) ) return 0;	// skip excluded files
-  struct stat st;
-  if( lstat( filename, &st ) != 0 )
-    { show_file_error( filename, cant_stat, errno );
-      set_error_status( 1 ); return 0; }
-  if( nftw( filename, add_memberp, 16, cl_opts.dereference ? 0 : FTW_PHYS ) )
-    return 1;					// write error or OOM
-  return 2;
+  if( code == 'C' )
+    { if( chdir( filename ) == 0 ) return 0;
+      show_file_error( filename, chdir_msg, errno ); return 1; }
+  if( code == 'T' || ( code == 0 && !arg.empty() ) )
+    {
+    const int flags = (cl_opts.depth ? FTW_DEPTH : 0) |
+                      (cl_opts.dereference ? 0 : FTW_PHYS) |
+                      (cl_opts.mount ? FTW_MOUNT : 0) |
+                      (cl_opts.xdev ? FTW_XDEV : 0);
+    if( code == 'T' )
+      return read_t_list( cl_opts, filename, flags, add_memberp );
+    std::string deslashed;		// filename without trailing slashes
+    unsigned len = arg.size();
+    while( len > 1 && arg[len-1] == '/' ) --len;
+    if( len < arg.size() )		// remove trailing slashes
+      { deslashed.assign( arg, 0, len ); filename = deslashed.c_str(); }
+    return call_nftw( cl_opts, filename, flags, add_memberp );
+    }
+  return 0;				// skip options and empty names
   }
 
 
@@ -659,7 +733,7 @@ int encode( const Cl_options & cl_opts )
   gcl_opts = &cl_opts;
 
   const bool append = cl_opts.program_mode == m_append;
-  if( cl_opts.num_files <= 0 )
+  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present )
     {
     if( !append && !to_stdout )			// create archive
       { show_error( "Cowardly refusing to create an empty archive.", 0, true );
@@ -700,15 +774,26 @@ int encode( const Cl_options & cl_opts )
     { show_file_error( archive_namep, "Can't stat", errno );
       close( goutfd ); return 1; }
 
-  if( compressed )
+  if( !compressed )
     {
-    /* CWD is not per-thread; multi-threaded --create can't be used if a
-       -C option appears after a relative filename in the command line. */
-    if( cl_opts.solidity != asolid && cl_opts.solidity != solid &&
-        cl_opts.num_workers > 0 &&
-        !option_C_after_relative_filename( cl_opts.parser ) )
+    /* CWD is not per-thread; multithreaded --create can't be used if an
+       option -C appears in the command line after a relative filename or
+       after an option -T. */
+    if( cl_opts.parallel && cl_opts.num_workers > 1 &&
+        ( !cl_opts.option_C_present ||
+          !option_C_after_relative_filename_or_T( cl_opts.parser ) ) )
       {
-      // show_file_error( archive_namep, "Multi-threaded --create" );
+      // show_file_error( archive_namep, "Multithreaded --create --un" );
+      return encode_un( cl_opts, archive_namep, goutfd );
+      }
+    }
+  else
+    {
+    if( cl_opts.solidity != asolid && cl_opts.solidity != solid &&
+        cl_opts.num_workers > 0 && ( !cl_opts.option_C_present ||
+        !option_C_after_relative_filename_or_T( cl_opts.parser ) ) )
+      {
+      // show_file_error( archive_namep, "Multithreaded --create" );
       return encode_lz( cl_opts, archive_namep, goutfd );
       }
     encoder = LZ_compress_open( option_mapping[cl_opts.level].dictionary_size,

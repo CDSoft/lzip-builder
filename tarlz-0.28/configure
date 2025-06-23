@@ -6,7 +6,7 @@
 # to copy, distribute, and modify it.
 
 pkgname=tarlz
-pkgversion=0.27.1
+pkgversion=0.28
 progname=tarlz
 srctrigger=doc/${pkgname}.texi
 

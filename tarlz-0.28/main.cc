@@ -25,23 +25,22 @@
 
 #include <cctype>
 #include <cerrno>
-#include <climits>		// CHAR_BIT
+#include <climits>		// CHAR_BIT, SSIZE_MAX
 #include <cstdarg>
 #include <cstdio>
 #include <ctime>
 #include <fcntl.h>
-#include <pthread.h>		// for pthread_t
-#include <stdint.h>		// for lzlib.h
+#include <pthread.h>		// pthread_t
 #include <unistd.h>
 #include <sys/stat.h>
 #include <grp.h>
 #include <pwd.h>
-#include <lzlib.h>
 #if defined __OS2__
 #include <io.h>
 #endif
 
-#include "tarlz.h"
+#include "tarlz.h"		// SIZE_MAX
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 
 #ifndef O_BINARY
@@ -50,6 +49,11 @@
 
 #if CHAR_BIT != 8
 #error "Environments where CHAR_BIT != 8 are not supported."
+#endif
+
+#if ( defined  SIZE_MAX &&  SIZE_MAX < ULONG_MAX ) || \
+    ( defined SSIZE_MAX && SSIZE_MAX <  LONG_MAX )
+#error "Environments where 'size_t' is narrower than 'long' are not supported."
 #endif
 
 int verbosity = 0;
@@ -63,8 +67,8 @@ const char * invocation_name = program_name;		// default value
 
 void show_help( const long num_online )
   {
-  std::printf( "Tarlz is a massively parallel (multi-threaded) combined implementation of\n"
-               "the tar archiver and the lzip compressor. Tarlz uses the compression library\n"
+  std::printf( "Tarlz is a massively parallel (multithreaded) combined implementation of the\n"
+               "tar archiver and the lzip compressor. Tarlz uses the compression library\n"
                "lzlib.\n"
                "\nTarlz creates tar archives using a simplified and safer variant of the POSIX\n"
                "pax format compressed in lzip format, keeping the alignment between tar\n"
@@ -84,7 +88,7 @@ void show_help( const long num_online )
                "can be used to recover some of the damaged members.\n"
                "\nUsage: %s operation [options] [files]\n", invocation_name );
   std::printf( "\nOperations:\n"
-               "      --help                  display this help and exit\n"
+               "  -?, --help                  display this help and exit\n"
                "  -V, --version               output version information and exit\n"
                "  -A, --concatenate           append archives to the end of an archive\n"
                "  -c, --create                create a new archive\n"
@@ -95,6 +99,7 @@ void show_help( const long num_online )
                "  -x, --extract               extract files/directories from an archive\n"
                "  -z, --compress              compress existing POSIX tar archives\n"
                "      --check-lib             check version of lzlib and exit\n"
+               "      --time-bits             print the size of time_t in bits and exit\n"
                "\nOptions:\n"
                "  -B, --data-size=<bytes>     set target size of input data blocks [2x8=16 MiB]\n"
                "  -C, --directory=<dir>       change to directory <dir>\n"
@@ -104,25 +109,31 @@ void show_help( const long num_online )
                "  -o, --output=<file>         compress to <file> ('-' for stdout)\n"
                "  -p, --preserve-permissions  don't subtract the umask on extraction\n"
                "  -q, --quiet                 suppress all messages\n"
+               "  -R, --no-recursive          don't operate recursively on directories\n"
+               "      --recursive             operate recursively on directories (default)\n"
+               "  -T, --files-from=<file>     get file names from <file>\n"
                "  -v, --verbose               verbosely list files processed\n"
                "  -0 .. -9                    set compression level [default 6]\n"
-               "      --uncompressed          don't compress the archive created\n"
-               "      --asolid                create solidly compressed appendable archive\n"
-               "      --bsolid                create per block compressed archive (default)\n"
-               "      --dsolid                create per directory compressed archive\n"
-               "      --no-solid              create per file compressed archive\n"
-               "      --solid                 create solidly compressed archive\n"
+               "      --uncompressed          create an uncompressed archive\n"
+               "        --asolid              create solidly compressed appendable archive\n"
+               "        --bsolid              create per block compressed archive (default)\n"
+               "        --dsolid              create per directory compressed archive\n"
+               "        --no-solid            create per file compressed archive\n"
+               "        --solid               create solidly compressed archive\n"
                "      --anonymous             equivalent to '--owner=root --group=root'\n"
-               "      --owner=<owner>         use <owner> name/ID for files added to archive\n"
-               "      --group=<group>         use <group> name/ID for files added to archive\n"
+               "        --owner=<owner>       use <owner> name/ID for files added to archive\n"
+               "        --group=<group>       use <group> name/ID for files added to archive\n"
+               "      --depth                 archive entries before the directory itself\n"
                "      --exclude=<pattern>     exclude files matching a shell pattern\n"
                "      --ignore-ids            ignore differences in owner and group IDs\n"
                "      --ignore-metadata       compare only file size and file content\n"
                "      --ignore-overflow       ignore mtime overflow differences on 32-bit\n"
                "      --keep-damaged          don't delete partially extracted files\n"
                "      --missing-crc           exit with error status if missing extended CRC\n"
+               "      --mount, --xdev         stay in local file system when creating archive\n"
                "      --mtime=<date>          use <date> as mtime for files added to archive\n"
                "      --out-slots=<n>         number of 1 MiB output packets buffered [64]\n"
+               "      --parallel              create uncompressed archive in parallel\n"
                "      --warn-newer            warn if any file is newer than the archive\n"
 /*              "      --permissive            allow repeated extended headers and records\n"*/,
                num_online );
@@ -214,17 +225,17 @@ int check_lib()
 
 
 // separate numbers of 5 or more digits in groups of 3 digits using '_'
-const char * format_num3( long long num )
+const char * format_num3p( long long num )
   {
   enum { buffers = 8, bufsize = 4 * sizeof num, n = 10 };
   const char * const si_prefix = "kMGTPEZYRQ";
   const char * const binary_prefix = "KMGTPEZYRQ";
-  static char buffer[buffers][bufsize];	// circle of static buffers for printf
+  static char buffer[buffers][bufsize];	// circle of buffers for printf
   static int current = 0;
 
   char * const buf = buffer[current++]; current %= buffers;
   char * p = buf + bufsize - 1;		// fill the buffer backwards
-  *p = 0;	// terminator
+  *p = 0;				// terminator
   const bool negative = num < 0;
   if( num > 9999 || num < -9999 )
     {
@@ -304,8 +315,8 @@ long long getnum( const char * const arg, const char * const option_name,
     {
     if( verbosity >= 0 )
       std::fprintf( stderr, "%s: '%s': Value out of limits [%s,%s] in "
-                    "option '%s'.\n", program_name, arg, format_num3( llimit ),
-                    format_num3( ulimit ), option_name );
+                    "option '%s'.\n", program_name, arg, format_num3p( llimit ),
+                    format_num3p( ulimit ), option_name );
     std::exit( 1 );
     }
   return result;
@@ -403,16 +414,15 @@ bool nonempty_arg( const Arg_parser & parser, const int i )
   { return parser.code( i ) == 0 && !parser.argument( i ).empty(); }
 
 
-int open_instream( const std::string & name )
+int open_instream( const char * const name, struct stat * const in_statsp )
   {
-  const int infd = open( name.c_str(), O_RDONLY | O_BINARY );
-  if( infd < 0 )
-    { show_file_error( name.c_str(), "Can't open for reading", errno );
-      return -1; }
-  struct stat st;			// infd must not be a directory
-  if( fstat( infd, &st ) == 0 && S_ISDIR( st.st_mode ) )
-    { show_file_error( name.c_str(), "Can't read. Is a directory." );
-      close( infd ); return -1; }
+  const int infd = open( name, O_RDONLY | O_BINARY );
+  if( infd < 0 ) { show_file_error( name, rd_open_msg, errno ); return -1; }
+  struct stat st;
+  struct stat * const stp = in_statsp ? in_statsp : &st;
+  if( fstat( infd, stp ) == 0 && S_ISDIR( stp->st_mode ) )
+    { show_file_error( name, "Can't read. Is a directory." );
+      close( infd ); return -1; }	// infd must not be a directory
   return infd;
   }
 
@@ -557,8 +567,9 @@ int main( const int argc, const char * const argv[] )
   if( argc > 0 ) invocation_name = argv[0];
 
   enum { opt_ano = 256, opt_aso, opt_bso, opt_chk, opt_crc, opt_dbg, opt_del,
-         opt_dso, opt_exc, opt_grp, opt_hlp, opt_iid, opt_imd, opt_kd, opt_mti,
-         opt_nso, opt_ofl, opt_out, opt_own, opt_per, opt_sol, opt_un, opt_wn };
+         opt_dep, opt_dso, opt_exc, opt_grp, opt_iid, opt_imd, opt_kd,
+         opt_mnt, opt_mti, opt_nso, opt_ofl, opt_out, opt_own, opt_par,
+         opt_per, opt_rec, opt_sol, opt_tb, opt_un, opt_wn, opt_xdv };
   const Arg_parser::Option options[] =
     {
     { '0', 0,                      Arg_parser::no  },
@@ -571,6 +582,7 @@ int main( const int argc, const char * const argv[] )
     { '7', 0,                      Arg_parser::no  },
     { '8', 0,                      Arg_parser::no  },
     { '9', 0,                      Arg_parser::no  },
+    { '?', "help",                 Arg_parser::no  },
     { 'A', "concatenate",          Arg_parser::no  },
     { 'B', "data-size",            Arg_parser::yes },
     { 'c', "create",               Arg_parser::no  },
@@ -584,7 +596,9 @@ int main( const int argc, const char * const argv[] )
     { 'p', "preserve-permissions", Arg_parser::no  },
     { 'q', "quiet",                Arg_parser::no  },
     { 'r', "append",               Arg_parser::no  },
+    { 'R', "no-recursive",         Arg_parser::no  },
     { 't', "list",                 Arg_parser::no  },
+    { 'T', "files-from",           Arg_parser::yes },
     { 'v', "verbose",              Arg_parser::no  },
     { 'V', "version",              Arg_parser::no  },
     { 'x', "extract",              Arg_parser::no  },
@@ -595,23 +609,28 @@ int main( const int argc, const char * const argv[] )
     { opt_chk, "check-lib",        Arg_parser::no  },
     { opt_dbg, "debug",            Arg_parser::yes },
     { opt_del, "delete",           Arg_parser::no  },
+    { opt_dep, "depth",            Arg_parser::no  },
     { opt_dso, "dsolid",           Arg_parser::no  },
     { opt_exc, "exclude",          Arg_parser::yes },
     { opt_grp, "group",            Arg_parser::yes },
-    { opt_hlp, "help",             Arg_parser::no  },
     { opt_iid, "ignore-ids",       Arg_parser::no  },
     { opt_imd, "ignore-metadata",  Arg_parser::no  },
     { opt_kd,  "keep-damaged",     Arg_parser::no  },
     { opt_crc, "missing-crc",      Arg_parser::no  },
+    { opt_mnt, "mount",            Arg_parser::no  },
     { opt_mti, "mtime",            Arg_parser::yes },
     { opt_nso, "no-solid",         Arg_parser::no  },
     { opt_ofl, "ignore-overflow",  Arg_parser::no  },
     { opt_out, "out-slots",        Arg_parser::yes },
     { opt_own, "owner",            Arg_parser::yes },
+    { opt_par, "parallel",         Arg_parser::no  },
     { opt_per, "permissive",       Arg_parser::no  },
+    { opt_rec, "recursive",        Arg_parser::no  },
     { opt_sol, "solid",            Arg_parser::no  },
-    { opt_un,  "uncompressed",     Arg_parser::no  },
-    { opt_wn,  "warn-newer",       Arg_parser::no  },
+    { opt_tb, "time-bits",         Arg_parser::no  },
+    { opt_un, "uncompressed",      Arg_parser::no  },
+    { opt_wn, "warn-newer",        Arg_parser::no  },
+    { opt_xdv, "xdev",             Arg_parser::no  },
     { 0, 0,                        Arg_parser::no  } };
 
   const Arg_parser parser( argc, argv, options, true );	// in_order
@@ -645,11 +664,12 @@ int main( const int argc, const char * const argv[] )
       case '0': case '1': case '2': case '3': case '4':
       case '5': case '6': case '7': case '8': case '9':
                 cl_opts.set_level( code - '0' ); break;
+      case '?': show_help( num_online ); return 0;
       case 'A': set_mode( cl_opts.program_mode, m_concatenate ); break;
       case 'B': cl_opts.data_size =
                   getnum( arg, pn, min_data_size, max_data_size ); break;
       case 'c': set_mode( cl_opts.program_mode, m_create ); break;
-      case 'C': break;					// skip chdir
+      case 'C': cl_opts.option_C_present = true; break;
       case 'd': set_mode( cl_opts.program_mode, m_diff ); break;
       case 'f': set_archive_name( cl_opts.archive_name, sarg ); f_pn = pn; break;
       case 'h': cl_opts.dereference = true; break;
@@ -659,7 +679,9 @@ int main( const int argc, const char * const argv[] )
       case 'p': cl_opts.preserve_permissions = true; break;
       case 'q': verbosity = -1; break;
       case 'r': set_mode( cl_opts.program_mode, m_append ); break;
+      case 'R': cl_opts.recursive = false; break;
       case 't': set_mode( cl_opts.program_mode, m_list ); break;
+      case 'T': cl_opts.option_T_present = true; break;
       case 'v': if( verbosity < 4 ) ++verbosity; break;
       case 'V': show_version(); return 0;
       case 'x': set_mode( cl_opts.program_mode, m_extract ); break;
@@ -672,23 +694,28 @@ int main( const int argc, const char * const argv[] )
       case opt_chk: return check_lib();
       case opt_dbg: cl_opts.debug_level = getnum( arg, pn, 0, 3 ); break;
       case opt_del: set_mode( cl_opts.program_mode, m_delete ); break;
+      case opt_dep: cl_opts.depth = true; break;
       case opt_dso: cl_opts.solidity = dsolid; break;
       case opt_exc: Exclude::add_pattern( sarg ); break;
       case opt_grp: cl_opts.gid = parse_group( arg, pn ); break;
-      case opt_hlp: show_help( num_online ); return 0;
       case opt_iid: cl_opts.ignore_ids = true; break;
       case opt_imd: cl_opts.ignore_metadata = true; break;
       case opt_kd:  cl_opts.keep_damaged = true; break;
+      case opt_mnt: cl_opts.mount = true; break;
       case opt_mti: cl_opts.mtime = parse_mtime( arg, pn );
                     cl_opts.mtime_set = true; break;
       case opt_nso: cl_opts.solidity = no_solid; break;
       case opt_ofl: cl_opts.ignore_overflow = true; break;
       case opt_out: cl_opts.out_slots = getnum( arg, pn, 1, 1024 ); break;
       case opt_own: cl_opts.uid = parse_owner( arg, pn ); break;
+      case opt_par: cl_opts.parallel = true; break;
       case opt_per: cl_opts.permissive = true; break;
+      case opt_rec: cl_opts.recursive = true; break;
       case opt_sol: cl_opts.solidity = solid; break;
-      case opt_un:  cl_opts.set_level( -1 ); break;
-      case opt_wn:  cl_opts.warn_newer = true; break;
+      case opt_tb: std::printf( "%u\n", (int)sizeof( time_t ) * 8 ); return 0;
+      case opt_un: cl_opts.set_level( -1 ); break;
+      case opt_wn: cl_opts.warn_newer = true; break;
+      case opt_xdv: cl_opts.xdev = true; break;
       default: internal_error( "uncaught option." );
       }
     } // end process options
@@ -732,7 +759,7 @@ int main( const int argc, const char * const argv[] )
     if( cl_opts.level == 0 ) cl_opts.data_size = 1 << 20;
     else cl_opts.data_size = 2 * option_mapping[cl_opts.level].dictionary_size;
     }
-  if( cl_opts.num_workers < 0 )			// 0 disables multi-threading
+  if( cl_opts.num_workers < 0 )			// 0 disables multithreading
     cl_opts.num_workers = std::min( num_online, max_workers );
 
   switch( cl_opts.program_mode )

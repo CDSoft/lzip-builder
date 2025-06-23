@@ -8,8 +8,8 @@ SHELL = /bin/sh
 CAN_RUN_INSTALLINFO = $(SHELL) -c "install-info --version" > /dev/null 2>&1
 
 objs = arg_parser.o lzip_index.o archive_reader.o common.o common_decode.o \
-       common_mutex.o compress.o create.o create_lz.o decode.o decode_lz.o \
-       delete.o delete_lz.o exclude.o extended.o main.o
+       common_mutex.o compress.o create.o create_lz.o create_un.o decode.o \
+       decode_lz.o delete.o delete_lz.o exclude.o extended.o main.o
 
 
 .PHONY : all install install-bin install-info install-man \
@@ -41,13 +41,14 @@ common.o         : tarlz.h
 common_decode.o  : tarlz.h arg_parser.h decode.h
 common_mutex.o   : tarlz.h common_mutex.h
 compress.o       : tarlz.h arg_parser.h
-create.o         : tarlz.h arg_parser.h create.h
+create.o         : tarlz.h arg_parser.h common_mutex.h create.h
 create_lz.o      : tarlz.h arg_parser.h common_mutex.h create.h
+create_un.o      : tarlz.h arg_parser.h common_mutex.h create.h
 decode.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h decode.h
 decode_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h \
                    common_mutex.h decode.h
-delete.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h
-delete_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h
+delete.o         : tarlz.h arg_parser.h lzip_index.h archive_reader.h decode.h
+delete_lz.o      : tarlz.h arg_parser.h lzip_index.h archive_reader.h decode.h
 exclude.o        : tarlz.h
 extended.o       : tarlz.h common_mutex.h
 lzip_index.o     : tarlz.h lzip_index.h

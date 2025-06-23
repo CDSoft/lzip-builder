@@ -1,3 +1,13 @@
+2025-06-20  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.28 released.
+	* New option '-T, --files-from'.
+	* New options '-R, --no-recursive' and '--recursive'.
+	* New options '--depth', '--mount', '--xdev', and '--parallel'.
+	* New operation '--time-bits'.
+	* Assign short option name '-?' to '--help'.
+	* archive_reader.cc (Archive_reader::read): Detect empty archive.
+
 2025-03-04  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.27.1 released.
@@ -12,7 +22,7 @@
 	  (make_dirs): stat last dir before trying to create directories.
 	* decode.cc (skip_warn): Diagnose a corrupt tar header.
 	* extended.cc (Extended::parse): Diagnose a CRC mismatch.
-	  New argument 'msg_vecp' for multi-threaded diagnostics.
+	  New argument 'msg_vecp' for multithreaded diagnostics.
 	* Many small fixes and improvements to the code and the manual.
 	* tarlz.texi: New chapter 'Creating backups safely'.
 	  (Suggested by Aren Tyr).
@@ -95,7 +105,8 @@
 	* Lzlib 1.12 or newer is now required.
 	* decode.cc (decode): Skip members without name except when listing.
 	  decode_lz.cc (dworker): Likewise. (Reported by Florian Schmaus).
-	* New options '-z, --compress', '-o, --output', and '--warn-newer'.
+	* New operation '-z, --compress'.
+	* New options '-o, --output' and '--warn-newer'.
 	* tarlz.texi (Invoking tarlz): Document concatenation to stdout.
 	* check.sh: Fix the '--diff' test on OS/2. (Reported by Elbert Pol).
 
@@ -108,18 +119,18 @@
 2020-11-21  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.18 released.
-	* New option '--check-lib'.
-	* Implement multi-threaded '-x, --extract'.
+	* New operation '--check-lib'.
+	* Implement multithreaded '-x, --extract'.
 	* Don't #include <sys/sysmacros.h> when compiling on OS2.
 	* delete.cc, delete_lz.cc: Use Archive_reader.
 	* extract.cc: Rename to decode.cc.
-	* tarlz.texi: New section 'Limitations of multi-threaded extraction'.
+	* tarlz.texi: New section 'Limitations of multithreaded extraction'.
 
 2020-07-30  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.17 released.
 	* New options '--mtime' and '-p, --preserve-permissions'.
-	* Implement multi-threaded '-d, --diff'.
+	* Implement multithreaded '-d, --diff'.
 	* list_lz.cc: Rename to decode_lz.cc.
 	  (decode_lz): Limit num_workers to number of members.
 	* main.cc (main): Report an error if a file name is empty or if the
@@ -140,7 +151,7 @@
 2019-04-11  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.15 released.
-	* New option '--delete' (from uncompressed and --no-solid archives).
+	* New operation '--delete' (from uncompressed or --no-solid archive).
 	* list_lz.cc: Fix MT listing of archives with format violations.
 
 2019-03-12  Antonio Diaz Diaz  <antonio@gnu.org>
@@ -165,14 +176,15 @@
 	* create.cc (fill_headers): Fix use of st_rdev instead of st_dev.
 	* Save just numerical uid/gid if user or group not in database.
 	* extract.cc (format_member_name): Print devmajor and devminor.
-	* New options '-d, --diff' and '--ignore-ids'.
+	* New operation '-d, --diff'.
+	* New option '--ignore-ids'.
 	* extract.cc: Fast '-t, --list' on seekable uncompressed archives.
 
 2019-02-13  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.11 released.
 	* extract.cc (archive_read): Fix endless loop with empty lz file.
-	* Implement multi-threaded '-c, --create' and '-r, --append'.
+	* Implement multithreaded '-c, --create' and '-r, --append'.
 	* '--bsolid' is now the default compression granularity.
 	* create.cc (remove_leading_dotslash): Remember more than one prefix.
 	* tarlz.texi: New chapter 'Minimum archive sizes'.
@@ -186,7 +198,7 @@
 2019-01-22  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.9 released.
-	* Implement multi-threaded '-t, --list'.
+	* Implement multithreaded '-t, --list'.
 	* New option '-n, --threads'.
 	* Recognize global pax headers. Ignore them for now.
 	* strtoul has been replaced with length-safe parsers.
@@ -211,7 +223,7 @@
 2018-10-19  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.6 released.
-	* New option '-A, --concatenate'.
+	* New operation '-A, --concatenate'.
 	* Replace option '--ignore-crc' with '--missing-crc'.
 	* create.cc (add_member): Check that uid, gid, mtime, devmajor,
 	  and devminor are in ustar range.
@@ -237,8 +249,8 @@
 
 	* Version 0.3 released.
 	* Rename project to 'tarlz' from 'pmtar' (Poor Man's Tar).
-	* New options '-C, --directory' and '-r, --append'.
-	* New options '--owner' and '--group'.
+	* New operation '-r, --append'.
+	* New options '-C, --directory', '--owner', and '--group'.
 	* New options '--asolid', '--dsolid', and '--solid'.
 	* Implement lzip compression of members at archive creation.
 	* Implement file appending to compressed archive.

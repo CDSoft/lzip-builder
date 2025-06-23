@@ -2,8 +2,8 @@ See the file INSTALL for compilation and installation instructions.
 
 Description
 
-Tarlz is a massively parallel (multi-threaded) combined implementation of
-the tar archiver and the lzip compressor. Tarlz uses the compression library
+Tarlz is a massively parallel (multithreaded) combined implementation of the
+tar archiver and the lzip compressor. Tarlz uses the compression library
 lzlib.
 
 Tarlz creates tar archives using a simplified and safer variant of the POSIX

@@ -20,14 +20,14 @@
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 #include "lzip_index.h"
 #include "archive_reader.h"
+#include "decode.h"
 
 
 bool safe_seek( const int fd, const long long pos )
@@ -38,7 +38,7 @@ bool safe_seek( const int fd, const long long pos )
 
 
 int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
-               std::vector< char > & name_pending, const long long istream_pos,
+               Cl_names & cl_names, const long long istream_pos,
                const int outfd, int retval )
   {
   const long long rest = ad.lzip_index.file_size() - istream_pos;
@@ -65,11 +65,7 @@ int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
   if( ( close( outfd ) | close( ad.infd ) ) != 0 && retval == 0 )
     { show_file_error( ad.namep, eclosa_msg, errno ); retval = 1; }
 
-  if( retval == 0 )
-    for( int i = 0; i < parser.arguments(); ++i )
-      if( nonempty_arg( parser, i ) && name_pending[i] )
-        { show_file_error( parser.argument( i ).c_str(), nfound_msg );
-          retval = 1; }
+  if( retval == 0 && cl_names.names_remain( parser ) ) retval = 1;
   return retval;
   }
 
@@ -79,7 +75,7 @@ int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
 */
 int delete_members( const Cl_options & cl_opts )
   {
-  if( cl_opts.num_files <= 0 )
+  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present )
     { if( verbosity >= 1 ) show_error( "Nothing to delete." ); return 0; }
   if( cl_opts.archive_name.empty() )
     { show_error( "Deleting from stdin not implemented yet." ); return 1; }
@@ -90,15 +86,11 @@ int delete_members( const Cl_options & cl_opts )
   const int outfd = open_outstream( cl_opts.archive_name, false );
   if( outfd < 0 ) { close( ad.infd ); return 1; }
 
-  // mark member names to be deleted
-  std::vector< char > name_pending( cl_opts.parser.arguments(), false );
-  for( int i = 0; i < cl_opts.parser.arguments(); ++i )
-    if( nonempty_arg( cl_opts.parser, i ) &&
-        !Exclude::excluded( cl_opts.parser.argument( i ).c_str() ) )
-      name_pending[i] = true;
+  // member names to be deleted
+  Cl_names cl_names( cl_opts.parser );
 
   if( ad.indexed )		// archive is a compressed regular file
-    return delete_members_lz( cl_opts, ad, name_pending, outfd );
+    return delete_members_lz( cl_opts, ad, cl_names, outfd );
   if( !ad.seekable )
     { show_file_error( ad.namep, "Archive is not seekable." ); return 1; }
   if( ad.lzip_index.file_size() < 3 * header_size )
@@ -165,7 +157,7 @@ int delete_members( const Cl_options & cl_opts )
       { show_file_error( ad.namep, seek_msg, errno ); break; }
 
     // delete tar member
-    if( !check_skip_filename( cl_opts, name_pending, extended.path().c_str() ) )
+    if( !check_skip_filename( cl_opts, cl_names, extended.path().c_str() ) )
       {
       print_removed_prefix( extended.removed_prefix );
       if( !show_member_name( extended, header, 1, rbuf ) )
@@ -187,5 +179,5 @@ int delete_members( const Cl_options & cl_opts )
     extended.reset();
     }
 
-  return tail_copy( cl_opts.parser, ad, name_pending, istream_pos, outfd, retval );
+  return tail_copy( cl_opts.parser, ad, cl_names, istream_pos, outfd, retval );
   }

@@ -21,7 +21,7 @@ var "release" "2025-03-04"
 var "lzlib_version"         "1.15"
 var "lzip_version"          "1.25"
 var "plzip_version"         "1.12"
-var "tarlz_version"         "0.27.1"
+var "tarlz_version"         "0.28"
 var "lziprecover_version"   "1.25"
 
 help.name "lzip-builder"
@@ -42,7 +42,6 @@ local F = require "F"
 local targets = require "targets"
 local sys = require "sys"
 
-var "builddir" ".build"
 clean "$builddir"
 
 var "tmp" "$builddir/tmp"
@@ -51,13 +50,15 @@ var "all" "$builddir/all"
 
 rule "extract" {
     description = "extract $url",
-    command = "curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt $opt",
+    command = "( curl -fsSL $url | PATH=$bin:$$PATH tar x --$fmt $opt ) && $fix",
 }
+var "fix" "true" -- the default fix does nothing
 
 local cflags = {
     "-O3",
     "-Ilzlib-$lzlib_version",
     [[-DPROGVERSION='"$progversion"']],
+    "-Wno-odr",
 }
 
 local ldflags = {
@@ -210,6 +211,7 @@ local tarlz_sources = F.map(F.prefix("tarlz-$tarlz_version/"), {
     "compress.cc",
     "create.cc",
     "create_lz.cc",
+    "create_un.cc",
     "decode.cc",
     "decode_lz.cc",
     "delete.cc",
@@ -228,6 +230,7 @@ build(tarlz_sources) { "extract",
         '--exclude="doc/*"',
         '--exclude="testsuite/*"',
     },
+    fix = "sed -i '1s;^;#include <sys/stat.h>\\n;' tarlz-$tarlz_version/decode.h",
 }
 
 acc(host) {

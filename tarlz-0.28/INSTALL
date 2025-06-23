@@ -4,12 +4,13 @@ You will need a C++98 compiler with support for 'long long', and the
 compression library lzlib installed. (gcc 3.3.6 or newer is recommended).
 I use gcc 6.1.0 and 3.3.6, but the code should compile with any standards
 compliant compiler.
-Lzlib must be version 1.12 or newer.
 Gcc is available at http://gcc.gnu.org
+Lzip is available at http://www.nongnu.org/lzip/lzip.html
 Lzlib is available at http://www.nongnu.org/lzip/lzlib.html
 
 Lzip is required to run the tests.
-Lzip is available at http://www.nongnu.org/lzip/lzip.html
+
+Lzlib must be version 1.12 or newer.
 
 The operating system must allow signal handlers read access to objects with
 static storage duration so that the cleanup handler for Control-C can delete

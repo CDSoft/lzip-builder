@@ -22,9 +22,7 @@
 #include <vector>
 #include <stdint.h>
 
-#define max_file_size ( LLONG_MAX - header_size )
-enum { header_size = 512,
-       max_edata_size = ( INT_MAX / header_size - 2 ) * header_size };
+enum { header_size = 512 };
 typedef uint8_t Tar_header[header_size];
 
 enum Offsets {
@@ -188,6 +186,8 @@ class Extended			// stores metadata from/for extended records
                         std::vector< std::string > * const msg_vecp = 0 ) const;
 
 public:
+  enum { max_edata_size = ( INT_MAX / header_size - 2 ) * header_size };
+  enum { max_file_size = LLONG_MAX - header_size };	// for padding
   static const std::string crc_record;
   std::string removed_prefix;
 
@@ -435,6 +435,7 @@ struct Cl_options		// command-line options
   int num_files;
   int num_workers;		// start this many worker threads
   int out_slots;
+  bool depth;
   bool dereference;
   bool filenames_given;
   bool ignore_ids;
@@ -443,19 +444,27 @@ struct Cl_options		// command-line options
   bool keep_damaged;
   bool level_set;		// compression level set in command line
   bool missing_crc;
+  bool mount;
   bool mtime_set;
+  bool option_C_present;
+  bool option_T_present;
+  bool parallel;
   bool permissive;
   bool preserve_permissions;
+  bool recursive;
   bool warn_newer;
+  bool xdev;
 
   Cl_options( const Arg_parser & ap )
     : parser( ap ), mtime( 0 ), uid( -1 ), gid( -1 ), program_mode( m_none ),
       solidity( bsolid ), data_size( 0 ), debug_level( 0 ), level( 6 ),
-      num_files( 0 ), num_workers( -1 ), out_slots( 64 ), dereference( false ),
-      filenames_given( false ), ignore_ids( false ), ignore_metadata( false ),
-      ignore_overflow( false ), keep_damaged( false ), level_set( false ),
-      missing_crc( false ), mtime_set( false ), permissive( false ),
-      preserve_permissions( false ), warn_newer( false ) {}
+      num_files( 0 ), num_workers( -1 ), out_slots( 64 ), depth( false ),
+      dereference( false ), filenames_given( false ), ignore_ids( false ),
+      ignore_metadata( false ), ignore_overflow( false ), keep_damaged( false ),
+      level_set( false ), missing_crc( false ), mount( false ),
+      mtime_set( false ), option_C_present( false ), option_T_present( false ),
+      parallel( false ), permissive( false ), preserve_permissions( false ),
+      recursive( true ), warn_newer( false ), xdev( false ) {}
 
   void set_level( const int l ) { level = l; level_set = true; }
 
@@ -476,6 +485,7 @@ const char * const extrec_msg = "Error in extended records.";
 const char * const miscrc_msg = "Missing CRC in extended records.";
 const char * const misrec_msg = "Missing extended records.";
 const char * const longrec_msg = "Extended records are too long.";
+const char * const large_file_msg = "Input file is too large.";
 const char * const end_msg = "Archive ends unexpectedly.";
 const char * const mem_msg = "Not enough memory.";
 const char * const mem_msg2 = "Not enough memory. Try a lower compression level.";
@@ -487,6 +497,7 @@ const char * const posix_lz_msg = "This does not look like a POSIX tar.lz archiv
 const char * const eclosa_msg = "Error closing archive";
 const char * const eclosf_msg = "Error closing file";
 const char * const nfound_msg = "Not found in archive.";
+const char * const rd_open_msg = "Can't open for reading";
 const char * const rd_err_msg = "Read error";
 const char * const wr_err_msg = "Write error";
 const char * const seek_msg = "Seek error";
@@ -495,19 +506,11 @@ const char * const intdir_msg = "Failed to create intermediate directory";
 
 // defined in common.cc
 unsigned long long parse_octal( const uint8_t * const ptr, const int size );
-int readblock( const int fd, uint8_t * const buf, const int size );
+long readblock( const int fd, uint8_t * const buf, const long size );
 int writeblock( const int fd, const uint8_t * const buf, const int size );
 
 // defined in common_decode.cc
 bool block_is_zero( const uint8_t * const buf, const int size );
-bool format_member_name( const Extended & extended, const Tar_header header,
-                         Resizable_buffer & rbuf, const bool long_format );
-bool show_member_name( const Extended & extended, const Tar_header header,
-                       const int vlevel, Resizable_buffer & rbuf );
-bool check_skip_filename( const Cl_options & cl_opts,
-                          std::vector< char > & name_pending,
-                          const char * const filename, const int cwd_fd = -1,
-                          std::string * const msgp = 0 );
 bool make_dirs( const std::string & name );
 
 // defined in common_mutex.cc
@@ -530,8 +533,9 @@ bool writeblock_wrapper( const int outfd, const uint8_t * const buffer,
 bool write_eoa_records( const int outfd, const bool compressed );
 const char * remove_leading_dotslash( const char * const filename,
              std::string * const removed_prefixp, const bool dotdot = false );
-bool fill_headers( const char * const filename, Extended & extended,
-                   Tar_header header, long long & file_size, const int flag );
+bool fill_headers( std::string & estr, const char * const filename,
+                   Extended & extended, Tar_header header,
+                   long long & file_size, const int flag );
 bool block_is_full( const int extended_size,
                     const unsigned long long file_size,
                     const unsigned long long target_size,
@@ -541,10 +545,6 @@ bool check_ustar_chksum( const Tar_header header );
 bool has_lz_ext( const std::string & name );
 int concatenate( const Cl_options & cl_opts );
 int encode( const Cl_options & cl_opts );
-
-// defined in create_lz.cc
-int encode_lz( const Cl_options & cl_opts, const char * const archive_namep,
-               const int outfd );
 
 // defined in decode.cc
 bool compare_file_type( std::string & estr, std::string & ostr,
@@ -556,27 +556,12 @@ bool compare_file_contents( std::string & estr, std::string & ostr,
                             const char * const filename, const int infd2 );
 int decode( const Cl_options & cl_opts );
 
-// defined in decode_lz.cc
-struct Archive_descriptor;
-int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
-               std::vector< char > & name_pending );
-
 // defined in delete.cc
-bool safe_seek( const int fd, const long long pos );
-int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
-               std::vector< char > & name_pending, const long long istream_pos,
-               const int outfd, int retval );
 int delete_members( const Cl_options & cl_opts );
-
-// defined in delete_lz.cc
-int delete_members_lz( const Cl_options & cl_opts,
-                       const Archive_descriptor & ad,
-                       std::vector< char > & name_pending, const int outfd );
 
 // defined in exclude.cc
 namespace Exclude {
 void add_pattern( const std::string & arg );
-void clear();
 bool excluded( const char * const filename );
 } // end namespace Exclude
 
@@ -594,7 +579,7 @@ struct stat;
 int hstat( const char * const filename, struct stat * const st,
            const bool dereference );
 bool nonempty_arg( const Arg_parser & parser, const int i );
-int open_instream( const std::string & name );
+int open_instream( const char * const name, struct stat * const in_statsp = 0 );
 int open_outstream( const std::string & name, const bool create = true,
                     Resizable_buffer * const rbufp = 0, const bool force = true );
 void show_error( const char * const msg, const int errcode = 0,

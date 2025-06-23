@@ -104,6 +104,66 @@ bool compare_tslash( const char * const name1, const char * const name2 )
   return !*p && !*q;
   }
 
+
+/* Return the address of a malloc'd buffer containing the file data and
+   the file size in '*file_sizep'.
+   In case of error, return 0 and do not modify '*file_sizep'.
+*/
+char * read_file( const char * const cl_filename, long * const file_sizep )
+  {
+  const char * const large_file4_msg = "File is larger than 4 GiB.";
+  const bool from_stdin = cl_filename[0] == '-' && cl_filename[1] == 0;
+  const char * const filename = from_stdin ? "(stdin)" : cl_filename;
+  struct stat in_stats;
+  const int infd =
+    from_stdin ? STDIN_FILENO : open_instream( filename, &in_stats );
+  if( infd < 0 ) return 0;
+  const long long max_size = 1LL << 32;
+  long long buffer_size = ( !from_stdin && S_ISREG( in_stats.st_mode ) ) ?
+    in_stats.st_size + 1 : 65536;
+  if( buffer_size > max_size + 1 )
+    { show_file_error( filename, large_file4_msg ); close( infd ); return 0; }
+  if( buffer_size >= LONG_MAX )
+    { show_file_error( filename, large_file_msg ); close( infd ); return 0; }
+  uint8_t * buffer = (uint8_t *)std::malloc( buffer_size );
+  if( !buffer )
+    { show_file_error( filename, mem_msg ); close( infd ); return 0; }
+  long long file_size = readblock( infd, buffer, buffer_size );
+  while( file_size >= buffer_size && file_size < max_size && !errno )
+    {
+    if( buffer_size >= LONG_MAX )
+      { show_file_error( filename, large_file_msg ); std::free( buffer );
+        close( infd ); return 0; }
+    buffer_size = (buffer_size <= LONG_MAX / 2) ? 2 * buffer_size : LONG_MAX;
+    uint8_t * const tmp = (uint8_t *)std::realloc( buffer, buffer_size );
+    if( !tmp )
+      { show_file_error( filename, mem_msg ); std::free( buffer );
+        close( infd ); return 0; }
+    buffer = tmp;
+    file_size += readblock( infd, buffer + file_size, buffer_size - file_size );
+    }
+  if( errno )
+    { show_file_error( filename, rd_err_msg, errno );
+      std::free( buffer ); close( infd ); return 0; }
+  if( close( infd ) != 0 )
+    { show_file_error( filename, "Error closing input file", errno );
+      std::free( buffer ); return 0; }
+  if( file_size > max_size )
+    { show_file_error( filename, large_file4_msg );
+      std::free( buffer ); return 0; }
+  if( file_size + 1 < buffer_size )
+    {
+    uint8_t * const tmp =
+      (uint8_t *)std::realloc( buffer, std::max( 1LL, file_size ) );
+    if( !tmp )
+      { show_file_error( filename, mem_msg ); std::free( buffer );
+        close( infd ); return 0; }
+    buffer = tmp;
+    }
+  *file_sizep = file_size;
+  return (char *)buffer;
+  }
+
 } // end namespace
 
 
@@ -187,30 +247,50 @@ bool show_member_name( const Extended & extended, const Tar_header header,
 
 
 /* Return true if file must be skipped.
-   Execute -C options if cwd_fd >= 0 (diff or extract). */
-bool check_skip_filename( const Cl_options & cl_opts,
-                          std::vector< char > & name_pending,
+   Execute -C options if cwd_fd >= 0 (diff or extract).
+   Each name specified in the command line or in the argument to option -T
+   matches all members with the same name in the archive. */
+bool check_skip_filename( const Cl_options & cl_opts, Cl_names & cl_names,
                           const char * const filename, const int cwd_fd,
                           std::string * const msgp )
   {
   static int c_idx = -1;		// parser index of last -C executed
   if( Exclude::excluded( filename ) ) return true;	// skip excluded files
-  if( cl_opts.num_files <= 0 ) return false;	// no files specified, no skip
+  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present ) return false;
   bool skip = true;	// else skip all but the files (or trees) specified
   bool chdir_pending = false;
 
-  for( int i = 0; i < cl_opts.parser.arguments(); ++i )
+  const Arg_parser & parser = cl_opts.parser;
+  for( int i = 0; i < parser.arguments(); ++i )
     {
-    if( cl_opts.parser.code( i ) == 'C' ) { chdir_pending = true; continue; }
-    if( !nonempty_arg( cl_opts.parser, i ) ) continue;	// skip opts, empty names
+    if( parser.code( i ) == 'C' ) { chdir_pending = true; continue; }
+    if( !nonempty_arg( parser, i ) && parser.code( i ) != 'T' ) continue;
     std::string removed_prefix;			// prefix of cl argument
-    const char * const name = remove_leading_dotslash(
-                 cl_opts.parser.argument( i ).c_str(), &removed_prefix );
-    if( compare_prefix_dir( name, filename ) ||
-        compare_tslash( name, filename ) )
+    bool match = false;
+    if( parser.code( i ) == 'T' )
+      {
+      T_names & t_names = cl_names.t_names( i );
+      for( unsigned j = 0; j < t_names.names(); ++j )
+        {
+        const char * const name =
+          remove_leading_dotslash( t_names.name( j ), &removed_prefix );
+        if( ( cl_opts.recursive && compare_prefix_dir( name, filename ) ) ||
+            compare_tslash( name, filename ) )
+          { match = true; t_names.reset_name_pending( j ); break; }
+        }
+      }
+    else
+      {
+      const char * const name =
+        remove_leading_dotslash( parser.argument( i ).c_str(), &removed_prefix );
+      if( ( cl_opts.recursive && compare_prefix_dir( name, filename ) ) ||
+          compare_tslash( name, filename ) )
+        { match = true; cl_names.name_pending_or_idx[i] = false; }
+      }
+    if( match )
       {
       print_removed_prefix( removed_prefix, msgp );
-      skip = false; name_pending[i] = false;
+      skip = false;
       // only serial decoder sets cwd_fd >= 0 to process -C options
       if( chdir_pending && cwd_fd >= 0 )
         {
@@ -220,8 +300,8 @@ bool check_skip_filename( const Cl_options & cl_opts,
               throw Chdir_error(); } c_idx = -1; }
         for( int j = c_idx + 1; j < i; ++j )
           {
-          if( cl_opts.parser.code( j ) != 'C' ) continue;
-          const char * const dir = cl_opts.parser.argument( j ).c_str();
+          if( parser.code( j ) != 'C' ) continue;
+          const char * const dir = parser.argument( j ).c_str();
           if( chdir( dir ) != 0 )
             { show_file_error( dir, chdir_msg, errno ); throw Chdir_error(); }
           c_idx = j;
@@ -262,4 +342,65 @@ bool make_dirs( const std::string & name )
       }
     }
   return true;
+  }
+
+
+T_names::T_names( const char * const filename )
+  {
+  buffer = read_file( filename, &file_size );
+  if( !buffer ) std::exit( 1 );
+  for( long i = 0; i < file_size; )
+    {
+    char * const p = (char *)std::memchr( buffer + i, '\n', file_size - i );
+    if( !p ) { show_file_error( filename, "Unterminated file name in list." );
+               std::exit( 1 ); }
+    *p = 0;				// overwrite newline terminator
+    const long idx = p - buffer;
+    if( idx - i > 4096 )
+      { show_file_error( filename, "File name too long in list." );
+        std::exit( 1 ); }
+    if( idx - i > 0 ) { name_idx.push_back( i ); } i = idx + 1;
+    }
+  name_pending_.resize( name_idx.size(), true );
+  }
+
+
+Cl_names::Cl_names( const Arg_parser & parser )
+  : name_pending_or_idx( parser.arguments(), false )
+  {
+  for( int i = 0; i < parser.arguments(); ++i )
+    {
+    if( parser.code( i ) == 'T' )
+      {
+      if( t_vec.size() >= 256 )
+        { show_file_error( parser.argument( i ).c_str(),
+            "More than 256 '-T' options in command line." ); std::exit( 1 ); }
+      name_pending_or_idx[i] = t_vec.size();
+      t_vec.push_back( new T_names( parser.argument( i ).c_str() ) );
+      }
+    else if( nonempty_arg( parser, i ) ) name_pending_or_idx[i] = true;
+    }
+  }
+
+
+bool Cl_names::names_remain( const Arg_parser & parser ) const
+  {
+  bool not_found = false;
+  for( int i = 0; i < parser.arguments(); ++i )
+    {
+    if( parser.code( i ) == 'T' )
+      {
+      const T_names & t_names = *t_vec[name_pending_or_idx[i]];
+      for( unsigned j = 0; j < t_names.names(); ++j )
+        if( t_names.name_pending( j ) &&
+          !Exclude::excluded( t_names.name( j ) ) )
+          { show_file_error( t_names.name( j ), nfound_msg );
+            not_found = true; }
+      }
+    else if( nonempty_arg( parser, i ) && name_pending_or_idx[i] &&
+        !Exclude::excluded( parser.argument( i ).c_str() ) )
+      { show_file_error( parser.argument( i ).c_str(), nfound_msg );
+        not_found = true; }
+    }
+  return not_found;
   }

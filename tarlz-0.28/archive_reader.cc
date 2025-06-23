@@ -19,11 +19,10 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "lzip_index.h"
 #include "archive_reader.h"
 
@@ -51,13 +50,13 @@ int preadblock( const int fd, uint8_t * const buf, const int size,
   return sz;
   }
 
-int non_tty_infd( const std::string & archive_name, const char * const namep )
+int non_tty_infd( const char * const name, const char * const namep )
   {
-  int infd = archive_name.empty() ? STDIN_FILENO : open_instream( archive_name );
+  int infd = name[0] ? open_instream( name ) : STDIN_FILENO;
   if( infd >= 0 && isatty( infd ) )		// for example /dev/tty
-    { show_file_error( namep, archive_name.empty() ?
-      "I won't read archive data from a terminal (missing -f option?)" :
-      "I won't read archive data from a terminal." );
+    { show_file_error( namep, name[0] ?
+      "I won't read archive data from a terminal." :
+      "I won't read archive data from a terminal (missing -f option?)" );
       close( infd ); infd = -1; }
   return infd;
   }
@@ -75,7 +74,7 @@ void xLZ_decompress_write( LZ_Decoder * const decoder,
 
 Archive_descriptor::Archive_descriptor( const std::string & archive_name )
   : name( archive_name ), namep( name.empty() ? "(stdin)" : name.c_str() ),
-    infd( non_tty_infd( archive_name, namep ) ),
+    infd( non_tty_infd( name.c_str(), namep ) ),
     lzip_index( infd ),
     seekable( lseek( infd, 0, SEEK_SET ) == 0 ),
     indexed( seekable && lzip_index.retval() == 0 ) {}
@@ -89,7 +88,7 @@ int Archive_reader_base::parse_records( Extended & extended,
   const long long edsize = parse_octal( header + size_o, size_l );
   const long long bufsize = round_up( edsize );
   if( edsize <= 0 ) return err( 2, misrec_msg );	// no extended records
-  if( edsize >= 1LL << 33 || bufsize > max_edata_size )
+  if( edsize >= 1LL << 33 || bufsize > extended.max_edata_size )
     return err( -2, longrec_msg );			// records too long
   if( !rbuf.resize( bufsize ) ) return err( -1, mem_msg );
   e_msg_ = ""; e_code_ = 0;
@@ -122,12 +121,12 @@ int Archive_reader::read( uint8_t * const buf, const int size )
     const bool iseoa =
       !islz && !istar && rd == size && block_is_zero( buf, size );
     bool maybe_lz = islz;			// maybe corrupt tar.lz
-    if( !islz && !istar && !iseoa )		// corrupt or invalid format
+    if( !islz && !istar && !iseoa && rd > 0 )	// corrupt or invalid format
       {
       const bool lz_ext = has_lz_ext( ad.name );
       show_file_error( ad.namep, lz_ext ? posix_lz_msg : posix_msg );
       if( lz_ext && rd >= min_member_size ) maybe_lz = true;
-      else return err( 2 );
+      else if( rd == size ) return err( 2 );
       }
     if( !maybe_lz )					// uncompressed
       { if( rd == size ) return 0;

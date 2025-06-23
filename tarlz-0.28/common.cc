@@ -38,13 +38,13 @@ unsigned long long parse_octal( const uint8_t * const ptr, const int size )
 /* Return the number of bytes really read.
    If (value returned < size) and (errno == 0), means EOF was reached.
 */
-int readblock( const int fd, uint8_t * const buf, const int size )
+long readblock( const int fd, uint8_t * const buf, const long size )
   {
-  int sz = 0;
+  long sz = 0;
   errno = 0;
   while( sz < size )
     {
-    const int n = read( fd, buf + sz, size - sz );
+    const long n = read( fd, buf + sz, size - sz );
     if( n > 0 ) sz += n;
     else if( n == 0 ) break;				// EOF
     else if( errno != EINTR ) break;

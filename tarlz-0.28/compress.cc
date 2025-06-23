@@ -20,13 +20,12 @@
 #include <cerrno>
 #include <csignal>
 #include <cstdio>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 
 
@@ -252,8 +251,8 @@ int compress_archive( const Cl_options & cl_opts,
       {
       const long long edsize = parse_octal( rbuf.u8() + size_o, size_l );
       const long long bufsize = round_up( edsize );
-      // overflow or no extended data
-      if( edsize <= 0 || edsize >= 1LL << 33 || bufsize > max_edata_size )
+      if( bufsize > extended.max_edata_size || edsize >= 1LL << 33 ||
+          edsize <= 0 )			// overflow or no extended data
         { show_file_error( filename, bad_hdr_msg ); close( infd ); return 2; }
       if( !rbuf.resize( total_header_size + bufsize ) )
         { show_file_error( filename, mem_msg ); close( infd ); return 1; }
@@ -301,10 +300,8 @@ int compress_archive( const Cl_options & cl_opts,
         const int rd = readblock( infd, buf, size );
         rest -= rd;
         if( rd != size )
-          {
-          show_atpos_error( filename, file_size - rest, true );
-          close( infd ); return 1;
-          }
+          { show_atpos_error( filename, file_size - rest, true );
+            close( infd ); return 1; }
         if( !archive_write( buf, size, encoder ) ) { close( infd ); return 1; }
         }
       }

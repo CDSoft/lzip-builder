@@ -21,11 +21,9 @@
 #include <cerrno>
 #include <cstdio>
 #include <queue>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <sys/stat.h>
 #include <ftw.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
 #include "arg_parser.h"
@@ -35,65 +33,24 @@
 
 namespace {
 
-const Cl_options * gcl_opts = 0;	// local vars needed by add_member_lz
-enum { max_packet_size = 1 << 20 };
+const Cl_options * gcl_opts = 0;	// local vars needed by add_member_un
+enum { max_packet_size = 1 << 20 };	// must be a multiple of header_size
 class Packet_courier;
 Packet_courier * courierp = 0;
-unsigned long long partial_data_size = 0;	// size of current block
 
 
-class Slot_tally
+struct Ipacket					// filename and flag
   {
-  const int num_slots;				// total slots
-  int num_free;					// remaining free slots
-  pthread_mutex_t mutex;
-  pthread_cond_t slot_av;			// slot available
+  const std::string filename;
+  const int flag;
 
-  Slot_tally( const Slot_tally & );		// declared as private
-  void operator=( const Slot_tally & );		// declared as private
-
-public:
-  explicit Slot_tally( const int slots )
-    : num_slots( slots ), num_free( slots )
-    { xinit_mutex( &mutex ); xinit_cond( &slot_av ); }
-
-  ~Slot_tally() { xdestroy_cond( &slot_av ); xdestroy_mutex( &mutex ); }
-
-  bool all_free() { return num_free == num_slots; }
-
-  void get_slot()				// wait for a free slot
-    {
-    xlock( &mutex );
-    while( num_free <= 0 ) xwait( &slot_av, &mutex );
-    --num_free;
-    xunlock( &mutex );
-    }
-
-  void leave_slot()				// return a slot to the tally
-    {
-    xlock( &mutex );
-    if( ++num_free == 1 ) xsignal( &slot_av );	// num_free was 0
-    xunlock( &mutex );
-    }
+  Ipacket( const char * const name, const int flg )
+    : filename( name ), flag( flg ) {}
   };
 
-
-struct Ipacket			// filename, file size and headers
+struct Opacket			// tar data to be written to the archive
   {
-  const long long file_size;
-  const std::string filename;	// filename.empty() means end of lzip member
-  const Extended * const extended;
-  const uint8_t * const header;
-
-  Ipacket() : file_size( 0 ), extended( 0 ), header( 0 ) {}
-  Ipacket( const char * const name, const long long fs,
-           const Extended * const ext, const uint8_t * const head )
-    : file_size( fs ), filename( name ), extended( ext ), header( head ) {}
-  };
-
-struct Opacket		// compressed data to be written to the archive
-  {
-  const uint8_t * data;		// data == 0 means end of lzip member
+  const uint8_t * data;		// data == 0 means end of tar member
   int size;			// number of bytes in data (if any)
 
   Opacket() : data( 0 ), size( 0 ) {}
@@ -118,11 +75,11 @@ private:
   const int num_workers;		// number of workers
   const unsigned out_slots;		// max output packets per queue
   pthread_mutex_t imutex;
-  pthread_cond_t iav_or_eof;	// input packet available or grouper done
+  pthread_cond_t iav_or_eof;	// input packet available or sender done
   pthread_mutex_t omutex;
   pthread_cond_t oav_or_exit;	// output packet available or all workers exited
   std::vector< pthread_cond_t > slot_av;	// output slot available
-  bool eof;					// grouper done
+  bool eof;					// sender done
 
   Packet_courier( const Packet_courier & );	// declared as private
   void operator=( const Packet_courier & );	// declared as private
@@ -148,16 +105,13 @@ public:
     xdestroy_cond( &iav_or_eof ); xdestroy_mutex( &imutex );
     }
 
-  /* Receive an ipacket from grouper.
-     If filename.empty() (end of lzip member token), move to next queue. */
+  // Receive an ipacket from sender and move to next queue.
   void receive_packet( const Ipacket * const ipacket )
     {
-    if( !ipacket->filename.empty() )
-      slot_tally.get_slot();		// wait for a free slot
+    slot_tally.get_slot();		// wait for a free slot
     xlock( &imutex );
     ipacket_queues[receive_id].push( ipacket );
-    if( ipacket->filename.empty() && ++receive_id >= num_workers )
-      receive_id = 0;
+    if( ++receive_id >= num_workers ) receive_id = 0;
     xbroadcast( &iav_or_eof );
     xunlock( &imutex );
     }
@@ -179,8 +133,7 @@ public:
       ipacket_queues[worker_id].pop();
       }
     xunlock( &imutex );
-    if( ipacket )
-      { if( !ipacket->filename.empty() ) slot_tally.leave_slot(); }
+    if( ipacket ) slot_tally.leave_slot();
     else
       {
       // notify muxer when last worker exits
@@ -229,7 +182,7 @@ public:
     xunlock( &omutex );
     }
 
-  void finish()			// grouper has no more packets to send
+  void finish()			// sender has no more packets to send
     {
     xlock( &imutex );
     eof = true;
@@ -249,117 +202,63 @@ public:
   };
 
 
-// send one ipacket with tar member metadata to courier and print filename
-int add_member_lz( const char * const filename, const struct stat *,
+// send one ipacket to courier and print filename
+int add_member_un( const char * const filename, const struct stat *,
                    const int flag, struct FTW * )
   {
   if( Exclude::excluded( filename ) ) return 0;		// skip excluded files
-  long long file_size;
-  // metadata for extended records
-  Extended * const extended = new( std::nothrow ) Extended;
-  uint8_t * const header = extended ? new( std::nothrow ) Tar_header : 0;
-  if( !header )
-    { show_error( mem_msg ); if( extended ) delete extended; return 1; }
-  if( !fill_headers( filename, *extended, header, file_size, flag ) )
-    { delete[] header; delete extended; return 0; }
-  print_removed_prefix( extended->removed_prefix );
-
-  if( gcl_opts->solidity == bsolid )
-    {
-    const int ebsize = extended->full_size();
-    if( ebsize < 0 ) { show_error( extended->full_size_error() ); return 1; }
-    if( block_is_full( ebsize, file_size, gcl_opts->data_size,
-                       partial_data_size ) )
-      courierp->receive_packet( new Ipacket );		// end of group
-    }
-  courierp->receive_packet( new Ipacket( filename, file_size, extended, header ) );
-
-  if( gcl_opts->solidity == no_solid )		// one tar member per group
-    courierp->receive_packet( new Ipacket );
+  courierp->receive_packet( new Ipacket( filename, flag ) );
   if( verbosity >= 1 ) std::fprintf( stderr, "%s\n", filename );
   return 0;
   }
 
 
-struct Grouper_arg
+struct Sender_arg
   {
   const Cl_options * cl_opts;
   Packet_courier * courier;
   };
 
 
-/* Package metadata of the files to be archived and pass them to the
-   courier for distribution to workers.
-*/
-extern "C" void * grouper( void * arg )
+// Send file names to be archived to the courier for distribution to workers
+extern "C" void * sender( void * arg )
   {
-  const Grouper_arg & tmp = *(const Grouper_arg *)arg;
+  const Sender_arg & tmp = *(const Sender_arg *)arg;
   const Cl_options & cl_opts = *tmp.cl_opts;
   Packet_courier & courier = *tmp.courier;
 
   for( int i = 0; i < cl_opts.parser.arguments(); ++i )	// parse command line
-    {
-    const int ret = parse_cl_arg( cl_opts, i, add_member_lz );
-    if( ret == 0 ) continue;				// skip arg
-    if( ret == 1 ) exit_fail_mt();			// error
-    if( cl_opts.solidity == dsolid )			// end of group
-      courier.receive_packet( new Ipacket );
-    }
-
-  if( cl_opts.solidity == bsolid && partial_data_size )	// finish last block
-    { partial_data_size = 0; courierp->receive_packet( new Ipacket ); }
+    if( parse_cl_arg( cl_opts, i, add_member_un ) == 1 ) exit_fail_mt();
   courier.finish();			// no more packets to send
   return 0;
   }
 
 
-/* Write ibuf to encoder. To minimize dictionary size, do not read from
-   encoder until encoder's input buffer is full or finish is true.
-   Send opacket to courier and allocate new obuf each time obuf is full.
+/* If isize > 0, write ibuf to opackets and send them to courier.
+   Else if obuf is full, send it in an opacket to courier.
+   Allocate new obuf each time obuf is full.
 */
-void loop_encode( const uint8_t * const ibuf, const int isize,
-                  uint8_t * & obuf, int & opos, Packet_courier & courier,
-                  LZ_Encoder * const encoder, const int worker_id,
-                  const bool finish = false )
+void loop_store( const uint8_t * const ibuf, const int isize,
+                 uint8_t * & obuf, int & opos, Packet_courier & courier,
+                 const int worker_id, const bool finish = false )
   {
   int ipos = 0;
   if( opos < 0 || opos > max_packet_size )
-    internal_error( "bad buffer index in loop_encode." );
-  while( true )
-    {
-    if( ipos < isize )
-      {
-      const int wr = LZ_compress_write( encoder, ibuf + ipos, isize - ipos );
-      if( wr < 0 ) internal_error( "library error (LZ_compress_write)." );
-      ipos += wr;
-      }
-    if( ipos >= isize )					// ibuf is empty
-      { if( finish ) LZ_compress_finish( encoder ); else break; }
-    const int rd =
-      LZ_compress_read( encoder, obuf + opos, max_packet_size - opos );
-    if( rd < 0 )
-      {
-      if( verbosity >= 0 )
-        std::fprintf( stderr, "LZ_compress_read error: %s\n",
-                      LZ_strerror( LZ_compress_errno( encoder ) ) );
-      exit_fail_mt();
-      }
-    opos += rd;
-    // obuf is full or last opacket in lzip member
-    if( opos >= max_packet_size || LZ_compress_finished( encoder ) == 1 )
+    internal_error( "bad buffer index in loop_store." );
+  do {
+    const int sz = std::min( isize - ipos, max_packet_size - opos );
+    if( sz > 0 )
+      { std::memcpy( obuf + opos, ibuf + ipos, sz ); ipos += sz; opos += sz; }
+    // obuf is full or last opacket in tar member
+    if( opos >= max_packet_size || ( opos > 0 && finish && ipos >= isize ) )
       {
       if( opos > max_packet_size )
         internal_error( "opacket size exceeded in worker." );
       courier.collect_packet( Opacket( obuf, opos ), worker_id );
       opos = 0; obuf = new( std::nothrow ) uint8_t[max_packet_size];
       if( !obuf ) { show_error( mem_msg2 ); exit_fail_mt(); }
-      if( LZ_compress_finished( encoder ) == 1 )
-        {
-        if( LZ_compress_restart_member( encoder, LLONG_MAX ) >= 0 ) break;
-        show_error( "LZ_compress_restart_member failed." ); exit_fail_mt();
-        }
       }
-    }
+    } while( ipos < isize );			// ibuf not empty
   if( ipos > isize ) internal_error( "ipacket size exceeded in worker." );
   if( ipos < isize ) internal_error( "input not fully consumed in worker." );
   }
@@ -368,97 +267,76 @@ void loop_encode( const uint8_t * const ibuf, const int isize,
 struct Worker_arg
   {
   Packet_courier * courier;
-  int dictionary_size;
-  int match_len_limit;
   int worker_id;
   };
 
 
-/* Get ipackets from courier, compress headers and file data, and give the
-   opackets produced to courier.
+/* Get ipackets from courier, store headers and file data in opackets, and
+   give them to courier.
 */
-extern "C" void * cworker( void * arg )
+extern "C" void * cworker_un( void * arg )
   {
   const Worker_arg & tmp = *(const Worker_arg *)arg;
   Packet_courier & courier = *tmp.courier;
-  const int dictionary_size = tmp.dictionary_size;
-  const int match_len_limit = tmp.match_len_limit;
   const int worker_id = tmp.worker_id;
 
-  LZ_Encoder * encoder = 0;
   uint8_t * data = 0;
   Resizable_buffer rbuf;			// extended header + data
   if( !rbuf.size() ) { show_error( mem_msg2 ); exit_fail_mt(); }
 
   int opos = 0;
-  bool flushed = true;		// avoid producing empty lzip members
   while( true )
     {
     const Ipacket * const ipacket = courier.distribute_packet( worker_id );
     if( !ipacket ) break;		// no more packets to process
-    if( ipacket->filename.empty() )	// end of group
-      {
-      if( !flushed )			// this lzip member is not empty
-        loop_encode( 0, 0, data, opos, courier, encoder, worker_id, true );
-      courier.collect_packet( Opacket(), worker_id );	// end of member token
-      flushed = true; delete ipacket; continue;
-      }
 
     const char * const filename = ipacket->filename.c_str();
-    const int infd = ipacket->file_size ? open_instream( filename ) : -1;
-    if( ipacket->file_size && infd < 0 )	// can't read file data
-      { delete[] ipacket->header; delete ipacket->extended; delete ipacket;
-        set_error_status( 1 ); continue; }	// skip file
+    const int flag = ipacket->flag;
+    long long file_size;
+    Extended extended;			// metadata for extended records
+    Tar_header header;
+    std::string estr;
+    if( !fill_headers( estr, filename, extended, header, file_size, flag ) )
+      { if( estr.size() ) std::fputs( estr.c_str(), stderr ); goto next; }
+    print_removed_prefix( extended.removed_prefix );
+    { const int infd = file_size ? open_instream( filename ) : -1;
+    if( file_size && infd < 0 )			// can't read file data
+      { set_error_status( 1 ); goto next; }	// skip file
 
-    flushed = false;
-    if( !encoder )		// init encoder just before using it
+    if( !data )				// init data just before using it
       {
       data = new( std::nothrow ) uint8_t[max_packet_size];
-      encoder = LZ_compress_open( dictionary_size, match_len_limit, LLONG_MAX );
-      if( !data || !encoder || LZ_compress_errno( encoder ) != LZ_ok )
-        {
-        if( !data || !encoder || LZ_compress_errno( encoder ) == LZ_mem_error )
-          show_error( mem_msg2 );
-        else
-          internal_error( "invalid argument to encoder." );
-        exit_fail_mt();
-        }
+      if( !data ) { show_error( mem_msg2 ); exit_fail_mt(); }
       }
 
-    const int ebsize = ipacket->extended->format_block( rbuf );	// may be 0
+    { const int ebsize = extended.format_block( rbuf );	// may be 0
     if( ebsize < 0 )
-      { show_error( ipacket->extended->full_size_error() ); exit_fail_mt(); }
-    if( ebsize > 0 )				// compress extended block
-      loop_encode( rbuf.u8(), ebsize, data, opos, courier, encoder, worker_id );
-    // compress ustar header
-    loop_encode( ipacket->header, header_size, data, opos, courier,
-                 encoder, worker_id );
-    delete[] ipacket->header; delete ipacket->extended;
+      { show_error( extended.full_size_error() ); exit_fail_mt(); }
+    if( ebsize > 0 )				// store extended block
+      loop_store( rbuf.u8(), ebsize, data, opos, courier, worker_id );
+    // store ustar header
+    loop_store( header, header_size, data, opos, courier, worker_id ); }
 
-    if( ipacket->file_size )
+    if( file_size )
       {
-      const long long bufsize = 32 * header_size;
-      uint8_t buf[bufsize];
-      long long rest = ipacket->file_size;
+      long long rest = file_size;
       while( rest > 0 )
         {
-        int size = std::min( rest, bufsize );
-        const int rd = readblock( infd, buf, size );
-        rest -= rd;
+        const int size = std::min( rest, (long long)(max_packet_size - opos) );
+        const int rd = readblock( infd, data + opos, size );
+        opos += rd; rest -= rd;
         if( rd != size )
-          {
-          show_atpos_error( filename, ipacket->file_size - rest, false );
-          close( infd ); exit_fail_mt();
-          }
+          { show_atpos_error( filename, file_size - rest, false );
+            close( infd ); exit_fail_mt(); }
         if( rest == 0 )				// last read
           {
-          const int rem = ipacket->file_size % header_size;
+          const int rem = file_size % header_size;
           if( rem > 0 )
             { const int padding = header_size - rem;
-              std::memset( buf + size, 0, padding ); size += padding; }
+              std::memset( data + opos, 0, padding ); opos += padding; }
           }
-        // compress size bytes of file
-        loop_encode( buf, size, data, opos, courier, encoder, worker_id );
+        if( opos >= max_packet_size )		// store size bytes of file
+          loop_store( 0, 0, data, opos, courier, worker_id );
         }
       if( close( infd ) != 0 )
         { show_file_error( filename, eclosf_msg, errno ); exit_fail_mt(); }
@@ -466,11 +344,12 @@ extern "C" void * cworker( void * arg )
     if( gcl_opts->warn_newer && archive_attrs.is_newer( filename ) )
       { show_file_error( filename, "File is newer than the archive." );
         set_error_status( 1 ); }
+    loop_store( 0, 0, data, opos, courier, worker_id, true ); }
+next:
+    courier.collect_packet( Opacket(), worker_id );	// end of member token
     delete ipacket;
     }
   if( data ) delete[] data;
-  if( encoder && LZ_compress_close( encoder ) < 0 )
-    { show_error( "LZ_compress_close failed." ); exit_fail_mt(); }
   return 0;
   }
 
@@ -499,31 +378,29 @@ void muxer( Packet_courier & courier, const int outfd )
 } // end namespace
 
 
-// init the courier, then start the grouper and the workers and call the muxer
-int encode_lz( const Cl_options & cl_opts, const char * const archive_namep,
+// init the courier, then start the sender and the workers and call the muxer
+int encode_un( const Cl_options & cl_opts, const char * const archive_namep,
                const int outfd )
   {
-  const int in_slots = 65536;		// max small files (<=512B) in 64 MiB
+  const int in_slots = cl_opts.out_slots;		// max files per queue
   const int num_workers = cl_opts.num_workers;
-  const int total_in_slots = ( INT_MAX / num_workers >= in_slots ) ?
+  const int total_in_slots = (INT_MAX / num_workers >= in_slots) ?
                              num_workers * in_slots : INT_MAX;
-  const int dictionary_size = option_mapping[cl_opts.level].dictionary_size;
-  const int match_len_limit = option_mapping[cl_opts.level].match_len_limit;
   gcl_opts = &cl_opts;
 
   /* If an error happens after any threads have been started, exit must be
      called before courier goes out of scope. */
   Packet_courier courier( num_workers, total_in_slots, cl_opts.out_slots );
-  courierp = &courier;			// needed by add_member_lz
+  courierp = &courier;			// needed by add_member_un
 
-  Grouper_arg grouper_arg;
-  grouper_arg.cl_opts = &cl_opts;
-  grouper_arg.courier = &courier;
+  Sender_arg sender_arg;
+  sender_arg.cl_opts = &cl_opts;
+  sender_arg.courier = &courier;
 
-  pthread_t grouper_thread;
-  int errcode = pthread_create( &grouper_thread, 0, grouper, &grouper_arg );
+  pthread_t sender_thread;
+  int errcode = pthread_create( &sender_thread, 0, sender, &sender_arg );
   if( errcode )
-    { show_error( "Can't create grouper thread", errcode ); return 1; }
+    { show_error( "Can't create sender thread", errcode ); return 1; }
 
   Worker_arg * worker_args = new( std::nothrow ) Worker_arg[num_workers];
   pthread_t * worker_threads = new( std::nothrow ) pthread_t[num_workers];
@@ -532,10 +409,8 @@ int encode_lz( const Cl_options & cl_opts, const char * const archive_namep,
   for( int i = 0; i < num_workers; ++i )
     {
     worker_args[i].courier = &courier;
-    worker_args[i].dictionary_size = dictionary_size;
-    worker_args[i].match_len_limit = match_len_limit;
     worker_args[i].worker_id = i;
-    errcode = pthread_create( &worker_threads[i], 0, cworker, &worker_args[i] );
+    errcode = pthread_create( &worker_threads[i], 0, cworker_un, &worker_args[i] );
     if( errcode )
       { show_error( "Can't create worker threads", errcode ); exit_fail_mt(); }
     }
@@ -551,22 +426,22 @@ int encode_lz( const Cl_options & cl_opts, const char * const archive_namep,
   delete[] worker_threads;
   delete[] worker_args;
 
-  errcode = pthread_join( grouper_thread, 0 );
+  errcode = pthread_join( sender_thread, 0 );
   if( errcode )
-    { show_error( "Can't join grouper thread", errcode ); exit_fail_mt(); }
+    { show_error( "Can't join sender thread", errcode ); exit_fail_mt(); }
 
   // write End-Of-Archive records
-  int retval = !write_eoa_records( outfd, true );
+  int retval = !write_eoa_records( outfd, false );
 
   if( close( outfd ) != 0 && retval == 0 )
     { show_file_error( archive_namep, eclosa_msg, errno ); retval = 1; }
 
   if( cl_opts.debug_level & 1 )
     std::fprintf( stderr,
-      "any worker tried to consume from grouper %8u times\n"
-      "any worker had to wait                   %8u times\n"
-      "muxer tried to consume from workers      %8u times\n"
-      "muxer had to wait                        %8u times\n",
+      "any worker tried to consume from sender %8u times\n"
+      "any worker had to wait                  %8u times\n"
+      "muxer tried to consume from workers     %8u times\n"
+      "muxer had to wait                       %8u times\n",
       courier.icheck_counter,
       courier.iwait_counter,
       courier.ocheck_counter,

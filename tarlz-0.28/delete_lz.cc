@@ -20,14 +20,14 @@
 #include <cctype>
 #include <cerrno>
 #include <cstdio>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 #include "lzip_index.h"
 #include "archive_reader.h"
+#include "decode.h"
 
 
 /* Deleting from a corrupt archive must not worsen the corruption. Stop and
@@ -35,7 +35,7 @@
 */
 int delete_members_lz( const Cl_options & cl_opts,
                        const Archive_descriptor & ad,
-                       std::vector< char > & name_pending, const int outfd )
+                       Cl_names & cl_names, const int outfd )
   {
   Archive_reader_i ar( ad );		// indexed reader
   Resizable_buffer rbuf;
@@ -107,7 +107,7 @@ int delete_members_lz( const Cl_options & cl_opts,
       if( ( retval = ar.skip_member( extended ) ) != 0 ) goto done;
 
       // delete tar member
-      if( !check_skip_filename( cl_opts, name_pending, extended.path().c_str() ) )
+      if( !check_skip_filename( cl_opts, cl_names, extended.path().c_str() ) )
         {
         print_removed_prefix( extended.removed_prefix );
         // check that members match
@@ -134,5 +134,5 @@ int delete_members_lz( const Cl_options & cl_opts,
 done:
   if( retval < retval2 ) retval = retval2;
   // tail copy keeps trailing data
-  return tail_copy( cl_opts.parser, ad, name_pending, istream_pos, outfd, retval );
+  return tail_copy( cl_opts.parser, ad, cl_names, istream_pos, outfd, retval );
   }

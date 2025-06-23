@@ -21,19 +21,18 @@
 #include <cerrno>
 #include <cstdio>
 #include <queue>
-#include <stdint.h>		// for lzlib.h
 #include <unistd.h>
 #include <utime.h>
 #include <sys/stat.h>
 #if !defined __FreeBSD__ && !defined __OpenBSD__ && !defined __NetBSD__ && \
     !defined __DragonFly__ && !defined __APPLE__ && !defined __OS2__
-#include <sys/sysmacros.h>	// for major, minor, makedev
+#include <sys/sysmacros.h>	// major, minor, makedev
 #else
-#include <sys/types.h>		// for major, minor, makedev
+#include <sys/types.h>		// major, minor, makedev
 #endif
-#include <lzlib.h>
 
 #include "tarlz.h"
+#include <lzlib.h>		// uint8_t defined in tarlz.h
 #include "arg_parser.h"
 #include "lzip_index.h"
 #include "archive_reader.h"
@@ -516,7 +515,7 @@ struct Worker_arg
   const Archive_descriptor * ad;
   Packet_courier * courier;
   Name_monitor * name_monitor;
-  std::vector< char > * name_pending;
+  Cl_names * cl_names;
   int worker_id;
   int num_workers;
   };
@@ -532,7 +531,7 @@ extern "C" void * dworker( void * arg )
   const Archive_descriptor & ad = *tmp.ad;
   Packet_courier & courier = *tmp.courier;
   Name_monitor & name_monitor = *tmp.name_monitor;
-  std::vector< char > & name_pending = *tmp.name_pending;
+  Cl_names & cl_names = *tmp.cl_names;
   const int worker_id = tmp.worker_id;
   const int num_workers = tmp.num_workers;
 
@@ -640,7 +639,7 @@ extern "C" void * dworker( void * arg )
          member will be ignored. */
       std::string rpmsg;			// removed prefix
       Trival trival;
-      if( check_skip_filename( cl_opts, name_pending, extended.path().c_str(),
+      if( check_skip_filename( cl_opts, cl_names, extended.path().c_str(),
                                -1, &rpmsg ) )
         trival = skip_member_lz( ar, courier, extended, i, worker_id, typeflag );
       else
@@ -715,7 +714,7 @@ int muxer( const char * const archive_namep, Packet_courier & courier )
 
 // init the courier, then start the workers and call the muxer.
 int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
-               std::vector< char > & name_pending )
+               Cl_names & cl_names )
   {
   const int out_slots = 65536;		// max small files (<=512B) in 64 MiB
   const int num_workers =		// limited to number of members
@@ -735,7 +734,7 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
     worker_args[i].ad = &ad;
     worker_args[i].courier = &courier;
     worker_args[i].name_monitor = &name_monitor;
-    worker_args[i].name_pending = &name_pending;
+    worker_args[i].cl_names = &cl_names;
     worker_args[i].worker_id = i;
     worker_args[i].num_workers = num_workers;
     const int errcode =
@@ -758,11 +757,7 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
   if( close( ad.infd ) != 0 )
     { show_file_error( ad.namep, eclosa_msg, errno ); set_retval( retval, 1 ); }
 
-  if( retval == 0 )
-    for( int i = 0; i < cl_opts.parser.arguments(); ++i )
-      if( nonempty_arg( cl_opts.parser, i ) && name_pending[i] )
-        { show_file_error( cl_opts.parser.argument( i ).c_str(), nfound_msg );
-          retval = 1; }
+  if( retval == 0 && cl_names.names_remain( cl_opts.parser ) ) retval = 1;
 
   if( cl_opts.debug_level & 1 )
     std::fprintf( stderr,

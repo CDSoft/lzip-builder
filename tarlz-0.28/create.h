@@ -44,9 +44,53 @@ public:
 
 extern Archive_attrs archive_attrs;
 
+
+class Slot_tally
+  {
+  const int num_slots;				// total slots
+  int num_free;					// remaining free slots
+  pthread_mutex_t mutex;
+  pthread_cond_t slot_av;			// slot available
+
+  Slot_tally( const Slot_tally & );		// declared as private
+  void operator=( const Slot_tally & );		// declared as private
+
+public:
+  explicit Slot_tally( const int slots )
+    : num_slots( slots ), num_free( slots )
+    { xinit_mutex( &mutex ); xinit_cond( &slot_av ); }
+
+  ~Slot_tally() { xdestroy_cond( &slot_av ); xdestroy_mutex( &mutex ); }
+
+  bool all_free() { return num_free == num_slots; }
+
+  void get_slot()				// wait for a free slot
+    {
+    xlock( &mutex );
+    while( num_free <= 0 ) xwait( &slot_av, &mutex );
+    --num_free;
+    xunlock( &mutex );
+    }
+
+  void leave_slot()				// return a slot to the tally
+    {
+    xlock( &mutex );
+    if( ++num_free == 1 ) xsignal( &slot_av );	// num_free was 0
+    xunlock( &mutex );
+    }
+  };
+
 const char * const cant_stat = "Can't stat input file";
 
 // defined in create.cc
 int parse_cl_arg( const Cl_options & cl_opts, const int i,
                   int (* add_memberp)( const char * const filename,
                       const struct stat *, const int flag, struct FTW * ) );
+
+// defined in create_lz.cc
+int encode_lz( const Cl_options & cl_opts, const char * const archive_namep,
+               const int outfd );
+
+// defined in create_un.cc
+int encode_un( const Cl_options & cl_opts, const char * const archive_namep,
+               const int outfd );
