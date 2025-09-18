@@ -1123,7 +1123,7 @@ prefix = ~/.local
 
 rule install-bin
   description = INSTALL $in to bin
-  command = install -v -D -t $${PREFIX:-$prefix}/bin $in
+  command = install -v -D -t $${DESTDIR}$${PREFIX:-$prefix}/bin $in
 
 build install-bin: install-bin $bin/lzip $bin/plzip $bin/tarlz $bin/lziprecover
 build install: phony install-bin
