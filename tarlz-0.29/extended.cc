@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -300,7 +300,7 @@ bool Extended::parse( const char * const buf, const int edsize,
     const char * tail;
     const int rsize =
       parse_decimal( buf + pos, &tail, edsize - pos, edsize - pos );
-    if( rsize <= 0 || tail[0] != ' ' || buf[pos+rsize-1] != '\n' ) return false;
+    if( rsize <= 0 || *tail != ' ' || buf[pos+rsize-1] != '\n' ) return false;
     ++tail;	// point to keyword
     // rest = length of (keyword + '=' + value) without the final newline
     const int rest = ( buf + ( pos + rsize - 1 ) ) - tail;
@@ -373,6 +373,7 @@ bool Extended::parse( const char * const buf, const int edsize,
         return false;
         }
       }
+    else if( rest > 6 && std::memcmp( tail, "ctime=", 6 ) == 0 ) {}	//ignore
     else if( ( rest < 8 || std::memcmp( tail, "comment=", 8 ) != 0 ) &&
              verbosity >= 1 ) unknown_keyword( tail, rest, msg_vecp );
     pos += rsize;

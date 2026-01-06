@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,7 +109,7 @@ bool compare_tslash( const char * const name1, const char * const name2 )
    the file size in '*file_sizep'.
    In case of error, return 0 and do not modify '*file_sizep'.
 */
-char * read_file( const char * const cl_filename, long * const file_sizep )
+const char * read_t_list( const char * const cl_filename, long * const file_sizep )
   {
   const char * const large_file4_msg = "File is larger than 4 GiB.";
   const bool from_stdin = cl_filename[0] == '-' && cl_filename[1] == 0;
@@ -129,6 +129,11 @@ char * read_file( const char * const cl_filename, long * const file_sizep )
   if( !buffer )
     { show_file_error( filename, mem_msg ); close( infd ); return 0; }
   long long file_size = readblock( infd, buffer, buffer_size );
+  if( file_size == buffer_size && !errno )
+    for( int i = 0; i < 4097 && i < file_size && buffer[i] != '\n'; ++i )
+      if( buffer[i] == 0 )		// quit early if NUL bytes in list
+        { show_file_error( filename, "File name in list contains NUL bytes." );
+          std::free( buffer ); close( infd ); return 0; }
   while( file_size >= buffer_size && file_size < max_size && !errno )
     {
     if( buffer_size >= LONG_MAX )
@@ -161,7 +166,7 @@ char * read_file( const char * const cl_filename, long * const file_sizep )
     buffer = tmp;
     }
   *file_sizep = file_size;
-  return (char *)buffer;
+  return (const char *)buffer;
   }
 
 } // end namespace
@@ -256,7 +261,7 @@ bool check_skip_filename( const Cl_options & cl_opts, Cl_names & cl_names,
   {
   static int c_idx = -1;		// parser index of last -C executed
   if( Exclude::excluded( filename ) ) return true;	// skip excluded files
-  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present ) return false;
+  if( cl_opts.num_files == 0 && !cl_opts.option_T_present ) return false;
   bool skip = true;	// else skip all but the files (or trees) specified
   bool chdir_pending = false;
 
@@ -347,18 +352,18 @@ bool make_dirs( const std::string & name )
 
 T_names::T_names( const char * const filename )
   {
-  buffer = read_file( filename, &file_size );
+  buffer = read_t_list( filename, &file_size );
   if( !buffer ) std::exit( 1 );
   for( long i = 0; i < file_size; )
     {
     char * const p = (char *)std::memchr( buffer + i, '\n', file_size - i );
     if( !p ) { show_file_error( filename, "Unterminated file name in list." );
-               std::exit( 1 ); }
+               std::free( (void *)buffer ); std::exit( 1 ); }
     *p = 0;				// overwrite newline terminator
     const long idx = p - buffer;
     if( idx - i > 4096 )
       { show_file_error( filename, "File name too long in list." );
-        std::exit( 1 ); }
+        std::free( (void *)buffer ); std::exit( 1 ); }
     if( idx - i > 0 ) { name_idx.push_back( i ); } i = idx + 1;
     }
   name_pending_.resize( name_idx.size(), true );
@@ -385,6 +390,7 @@ Cl_names::Cl_names( const Arg_parser & parser )
 
 bool Cl_names::names_remain( const Arg_parser & parser ) const
   {
+  const char * const nfound_msg = "Not found in archive.";
   bool not_found = false;
   for( int i = 0; i < parser.arguments(); ++i )
     {

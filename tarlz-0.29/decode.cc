@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -28,8 +28,6 @@
 #if !defined __FreeBSD__ && !defined __OpenBSD__ && !defined __NetBSD__ && \
     !defined __DragonFly__ && !defined __APPLE__ && !defined __OS2__
 #include <sys/sysmacros.h>	// major, minor, makedev
-#else
-#include <sys/types.h>		// major, minor, makedev
 #endif
 
 #include "tarlz.h"
@@ -284,7 +282,7 @@ bool compare_file_type( std::string & estr, std::string & ostr,
   const char * const filename = extended.path().c_str();
   const Typeflag typeflag = (Typeflag)header[typeflag_o];
   struct stat st;
-  bool diff = false, size_differs = false, type_differs = true;
+  bool dif = false, size_differs = false, type_differs = true;
   if( hstat( filename, &st, cl_opts.dereference ) != 0 )
     format_file_error( estr, filename, "warning: can't stat", errno );
   else if( ( typeflag == tf_regular || typeflag == tf_hiperf ) &&
@@ -308,14 +306,14 @@ bool compare_file_type( std::string & estr, std::string & ostr,
       const mode_t mode = parse_octal( header + mode_o, mode_l );  // 12 bits
       if( mode != ( st.st_mode & ( S_ISUID | S_ISGID | S_ISVTX |
                                    S_IRWXU | S_IRWXG | S_IRWXO ) ) )
-        { format_file_diff( ostr, filename, "Mode differs" ); diff = true; }
+        { format_file_diff( ostr, filename, "Mode differs" ); dif = true; }
       }
     if( !cl_opts.ignore_ids && !cl_opts.ignore_metadata )
       {
       if( extended.get_uid() != (long long)st.st_uid )
-        { format_file_diff( ostr, filename, "Uid differs" ); diff = true; }
+        { format_file_diff( ostr, filename, "Uid differs" ); dif = true; }
       if( extended.get_gid() != (long long)st.st_gid )
-        { format_file_diff( ostr, filename, "Gid differs" ); diff = true; }
+        { format_file_diff( ostr, filename, "Gid differs" ); dif = true; }
       }
     if( typeflag != tf_symlink )
       {
@@ -323,9 +321,9 @@ bool compare_file_type( std::string & estr, std::string & ostr,
           extended.mtime().sec() != (long long)st.st_mtime )
         {
         if( (time_t)extended.mtime().sec() == st.st_mtime )
-          { if( !cl_opts.ignore_overflow ) { diff = true;
+          { if( !cl_opts.ignore_overflow ) { dif = true;
               format_file_diff( ostr, filename, "Mod time overflow" ); } }
-        else { diff = true;
+        else { dif = true;
                format_file_diff( ostr, filename, "Mod time differs" ); }
         }
       if( ( typeflag == tf_regular || typeflag == tf_hiperf ) &&
@@ -336,7 +334,7 @@ bool compare_file_type( std::string & estr, std::string & ostr,
             (unsigned)major( st.st_rdev ) ||
             parse_octal( header + devminor_o, devminor_l ) !=
             (unsigned)minor( st.st_rdev ) ) )
-        { format_file_diff( ostr, filename, "Device number differs" ); diff = true; }
+        { format_file_diff( ostr, filename, "Device number differs" ); dif = true; }
       }
     else
       {
@@ -350,10 +348,10 @@ bool compare_file_type( std::string & estr, std::string & ostr,
         if( extended.linkpath() != buf ) e = true;
         }
       delete[] buf;
-      if( e ) { format_file_diff( ostr, filename, "Symlink differs" ); diff = true; }
+      if( e ) { format_file_diff( ostr, filename, "Symlink differs" ); dif = true; }
       }
     }
-  if( diff || size_differs || type_differs ) set_error_status( 1 );
+  if( dif || size_differs || type_differs ) set_error_status( 1 );
   return !( size_differs || type_differs );
   }
 
@@ -369,34 +367,34 @@ bool compare_file_contents( std::string & estr, std::string & ostr,
   uint8_t buf1[bufsize];
   uint8_t buf2[bufsize];
   int retval = 0;
-  bool diff = false;
+  bool dif = false;
   estr.clear(); ostr.clear();
   while( rest > 0 )
     {
     const int rsize1 = ( rest >= bufsize ) ? bufsize : rest + padding;
     const int rsize2 = ( rest >= bufsize ) ? bufsize : rest;
-    if( ( retval = ar.read( buf1, rsize1 ) ) != 0 ) { diff = true; break; }
-    if( !diff )
+    if( ( retval = ar.read( buf1, rsize1 ) ) != 0 ) { dif = true; break; }
+    if( !dif )
       {
       const int rd = readblock( infd2, buf2, rsize2 );
       if( rd != rsize2 )
         {
         if( errno ) format_file_error( estr, filename, rd_err_msg, errno );
         else format_file_diff( ostr, filename, "EOF found in file" );
-        diff = true;
+        dif = true;
         }
       else
         {
         int i = 0; while( i < rsize2 && buf1[i] == buf2[i] ) ++i;
         if( i < rsize2 )
-          { format_file_diff( ostr, filename, "Contents differ" ); diff = true; }
+          { format_file_diff( ostr, filename, "Contents differ" ); dif = true; }
         }
       }
     if( rest < bufsize ) break;
     rest -= rsize1;
     }
   close( infd2 );
-  if( diff ) set_error_status( 1 );
+  if( dif ) set_error_status( 1 );
   return retval;
   }
 
@@ -408,26 +406,27 @@ int decode( const Cl_options & cl_opts )
   const Archive_descriptor ad( cl_opts.archive_name );
   if( ad.infd < 0 ) return 1;
   if( ad.name.size() && ad.indexed && ad.lzip_index.multi_empty() )
-    { show_file_error( ad.namep, empty_msg ); close( ad.infd ); return 2; }
+    { show_file_error( ad.namep, empty_member_msg ); close( ad.infd ); return 2; }
 
+  const Arg_parser & parser = cl_opts.parser;
   const bool c_present = cl_opts.option_C_present &&
                          cl_opts.program_mode != m_list;
   const bool c_after_name = c_present &&
-                            option_C_after_filename_or_T( cl_opts.parser );
+                            option_C_after_filename_or_T( parser );
   // save current working directory for sequential decoding
   const int cwd_fd = c_after_name ? open( ".", O_RDONLY | O_DIRECTORY ) : -1;
   if( c_after_name && cwd_fd < 0 )
     { show_error( "Can't save current working directory", errno ); return 1; }
   if( c_present && !c_after_name )		// execute all -C options
-    for( int i = 0; i < cl_opts.parser.arguments(); ++i )
+    for( int i = 0; i < parser.arguments(); ++i )
       {
-      if( cl_opts.parser.code( i ) != 'C' ) continue;
-      const char * const dir = cl_opts.parser.argument( i ).c_str();
+      if( parser.code( i ) != 'C' ) continue;
+      const char * const dir = parser.argument( i ).c_str();
       if( chdir( dir ) != 0 )
         { show_file_error( dir, chdir_msg, errno ); return 1; }
       }
   // file names to be compared, extracted or listed
-  Cl_names cl_names( cl_opts.parser );
+  Cl_names cl_names( parser );
 
   /* CWD is not per-thread; multithreaded decode can't be used if an option
      -C appears in the command line after a file name or after an option -T.
@@ -516,6 +515,6 @@ int decode( const Cl_options & cl_opts )
     { show_file_error( ad.namep, eclosa_msg, errno ); retval = 1; }
   if( cwd_fd >= 0 ) close( cwd_fd );
 
-  if( retval == 0 && cl_names.names_remain( cl_opts.parser ) ) retval = 1;
+  if( retval == 0 && cl_names.names_remain( parser ) ) set_error_status( 1 );
   return final_exit_status( retval, cl_opts.program_mode != m_diff );
   }

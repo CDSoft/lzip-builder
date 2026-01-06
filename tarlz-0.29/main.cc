@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,94 +61,97 @@ const char * const program_name = "tarlz";
 
 namespace {
 
-const char * const program_year = "2025";
+const char * const program_year = "2026";
 const char * invocation_name = program_name;		// default value
 
 
 void show_help( const long num_online )
   {
-  std::printf( "Tarlz is a massively parallel (multithreaded) combined implementation of the\n"
-               "tar archiver and the lzip compressor. Tarlz uses the compression library\n"
-               "lzlib.\n"
-               "\nTarlz creates tar archives using a simplified and safer variant of the POSIX\n"
-               "pax format compressed in lzip format, keeping the alignment between tar\n"
-               "members and lzip members. The resulting multimember tar.lz archive is\n"
-               "backward compatible with standard tar tools like GNU tar, which treat it\n"
-               "like any other tar.lz archive. Tarlz can append files to the end of such\n"
-               "compressed archives.\n"
-               "\nKeeping the alignment between tar members and lzip members has two\n"
-               "advantages. It adds an indexed lzip layer on top of the tar archive, making\n"
-               "it possible to decode the archive safely in parallel. It also reduces the\n"
-               "amount of data lost in case of corruption.\n"
-               "\nThe tarlz file format is a safe POSIX-style backup format. In case of\n"
-               "corruption, tarlz can extract all the undamaged members from the tar.lz\n"
-               "archive, skipping over the damaged members, just like the standard\n"
-               "(uncompressed) tar. Moreover, the option '--keep-damaged' can be used to\n"
-               "recover as much data as possible from each damaged member, and lziprecover\n"
-               "can be used to recover some of the damaged members.\n"
-               "\nUsage: %s operation [options] [files]\n", invocation_name );
+  std::printf(
+    "Tarlz is a massively parallel (multithreaded) combined implementation of the\n"
+    "tar archiver and the lzip compressor. Tarlz uses the compression library\n"
+    "lzlib.\n"
+    "\nTarlz creates tar archives using a simplified and safer variant of the POSIX\n"
+    "pax format compressed in lzip format, keeping the alignment between tar\n"
+    "members and lzip members. The resulting multimember tar.lz archive is\n"
+    "backward compatible with standard tar tools like GNU tar, which treat it\n"
+    "like any other tar.lz archive. Tarlz can append files to the end of such\n"
+    "compressed archives.\n"
+    "\nKeeping the alignment between tar members and lzip members has two\n"
+    "advantages. It adds an indexed lzip layer on top of the tar archive, making\n"
+    "it possible to decode the archive safely in parallel. It also reduces the\n"
+    "amount of data lost in case of corruption.\n"
+    "\nThe tarlz file format is a safe POSIX-style backup format. In case of\n"
+    "corruption, tarlz can extract all the undamaged members from the tar.lz\n"
+    "archive, skipping over the damaged members, just like the standard\n"
+    "(uncompressed) tar. Moreover, the option '--keep-damaged' can be used to\n"
+    "recover as much data as possible from each damaged member, and lziprecover\n"
+    "can be used to recover some of the damaged members.\n"
+    "\nUsage: %s operation [options] [files]\n", invocation_name );
   std::printf( "\nOperations:\n"
-               "  -?, --help                  display this help and exit\n"
-               "  -V, --version               output version information and exit\n"
-               "  -A, --concatenate           append archives to the end of an archive\n"
-               "  -c, --create                create a new archive\n"
-               "  -d, --diff                  find differences between archive and file system\n"
-               "      --delete                delete files/directories from an archive\n"
-               "  -r, --append                append files to the end of an archive\n"
-               "  -t, --list                  list the contents of an archive\n"
-               "  -x, --extract               extract files/directories from an archive\n"
-               "  -z, --compress              compress existing POSIX tar archives\n"
-               "      --check-lib             check version of lzlib and exit\n"
-               "      --time-bits             print the size of time_t in bits and exit\n"
-               "\nOptions:\n"
-               "  -B, --data-size=<bytes>     set target size of input data blocks [2x8=16 MiB]\n"
-               "  -C, --directory=<dir>       change to directory <dir>\n"
-               "  -f, --file=<archive>        use archive file <archive>\n"
-               "  -h, --dereference           follow symlinks; archive the files they point to\n"
-               "  -n, --threads=<n>           set number of (de)compression threads [%ld]\n"
-               "  -o, --output=<file>         compress to <file> ('-' for stdout)\n"
-               "  -p, --preserve-permissions  don't subtract the umask on extraction\n"
-               "  -q, --quiet                 suppress all messages\n"
-               "  -R, --no-recursive          don't operate recursively on directories\n"
-               "      --recursive             operate recursively on directories (default)\n"
-               "  -T, --files-from=<file>     get file names from <file>\n"
-               "  -v, --verbose               verbosely list files processed\n"
-               "  -0 .. -9                    set compression level [default 6]\n"
-               "      --uncompressed          create an uncompressed archive\n"
-               "        --asolid              create solidly compressed appendable archive\n"
-               "        --bsolid              create per block compressed archive (default)\n"
-               "        --dsolid              create per directory compressed archive\n"
-               "        --no-solid            create per file compressed archive\n"
-               "        --solid               create solidly compressed archive\n"
-               "      --anonymous             equivalent to '--owner=root --group=root'\n"
-               "        --owner=<owner>       use <owner> name/ID for files added to archive\n"
-               "        --group=<group>       use <group> name/ID for files added to archive\n"
-               "      --depth                 archive entries before the directory itself\n"
-               "      --exclude=<pattern>     exclude files matching a shell pattern\n"
-               "      --ignore-ids            ignore differences in owner and group IDs\n"
-               "      --ignore-metadata       compare only file size and file content\n"
-               "      --ignore-overflow       ignore mtime overflow differences on 32-bit\n"
-               "      --keep-damaged          don't delete partially extracted files\n"
-               "      --missing-crc           exit with error status if missing extended CRC\n"
-               "      --mount, --xdev         stay in local file system when creating archive\n"
-               "      --mtime=<date>          use <date> as mtime for files added to archive\n"
-               "      --out-slots=<n>         number of 1 MiB output packets buffered [64]\n"
-               "      --parallel              create uncompressed archive in parallel\n"
-               "      --warn-newer            warn if any file is newer than the archive\n"
-/*              "      --permissive            allow repeated extended headers and records\n"*/,
-               num_online );
-  if( verbosity >= 1 )
-    {
-    std::printf( "      --debug=<level>         (0-1) print debug statistics to stderr\n" );
-    }
-  std::printf( "\nIf no archive is specified, tarlz tries to read it from standard input or\n"
-               "write it to standard output.\n"
-               "\nExit status: 0 for a normal exit, 1 for environmental problems\n"
-               "(file not found, files differ, invalid command-line options, I/O errors,\n"
-               "etc), 2 to indicate a corrupt or invalid input file, 3 for an internal\n"
-               "consistency error (e.g., bug) which caused tarlz to panic.\n"
-               "\nReport bugs to lzip-bug@nongnu.org\n"
-               "Tarlz home page: http://www.nongnu.org/lzip/tarlz.html\n" );
+    "  -?, --help                  display this help and exit\n"
+    "  -V, --version               output version information and exit\n"
+    "  -A, --concatenate           append archives to the end of an archive\n"
+    "  -c, --create                create a new archive\n"
+    "  -d, --diff                  find differences between archive and file system\n"
+    "      --delete                delete files/directories from an archive\n"
+    "  -r, --append                append files to the end of an archive\n"
+    "  -t, --list                  list the contents of an archive\n"
+    "  -x, --extract               extract files/directories from an archive\n"
+    "  -z, --compress              compress existing POSIX tar archives\n"
+    "      --check-lib             check version of lzlib and exit\n"
+    "      --time-bits             print the size of time_t in bits and exit\n"
+    "\nOptions:\n"
+    "  -B, --data-size=<bytes>     set target size of input data blocks [2x8=16 MiB]\n"
+    "  -C, --directory=<dir>       change to directory <dir>\n"
+    "  -f, --file=<archive>        use archive file <archive>\n"
+    "  -h, --dereference           follow symlinks; archive the files they point to\n"
+    "  -n, --threads=<n>           set number of (de)compression threads [%ld]\n"
+    "  -o, --output=<file>         compress to <file> ('-' for stdout)\n"
+    "  -p, --preserve-permissions  don't subtract the umask on extraction\n"
+    "  -q, --quiet                 suppress all messages\n"
+    "  -R, --no-recursive          don't operate recursively on directories\n"
+    "      --recursive             operate recursively on directories (default)\n"
+    "  -T, --files-from=<file>     get file names from <file>\n"
+    "  -v, --verbose               verbosely list files processed\n"
+    "  -0 .. -9                    set compression level [default 6]\n"
+    "      --uncompressed          create an uncompressed archive\n"
+    "        --asolid              create solidly compressed appendable archive\n"
+    "        --bsolid              create per block compressed archive (default)\n"
+    "        --dsolid              create per directory compressed archive\n"
+    "        --no-solid            create per file compressed archive\n"
+    "        --solid               create solidly compressed archive\n"
+    "      --anonymous             equivalent to '--owner=root --group=root'\n"
+    "        --owner=<owner>       use <owner> name/ID for files added to archive\n"
+    "        --group=<group>       use <group> name/ID for files added to archive\n"
+    "        --numeric-owner       don't write owner or group names to archive\n"
+    "      --depth                 archive entries before the directory itself\n"
+    "      --exclude=<pattern>     exclude files matching a shell pattern\n"
+    "      --ignore-ids            ignore differences in owner and group IDs\n"
+    "      --ignore-metadata       compare only file size and file content\n"
+    "      --ignore-overflow       ignore mtime overflow differences on 32-bit\n"
+    "      --keep-damaged          don't delete partially extracted files\n"
+    "      --missing-crc           exit with error status if missing extended CRC\n"
+    "      --mount, --xdev         stay in local file system when creating archive\n"
+    "      --mtime=<date>          use <date> as mtime for files added to archive\n"
+    "      --out-slots=<n>         number of 1 MiB output packets buffered [64]\n"
+    "      --parallel              create uncompressed archive in parallel\n"
+    "      --warn-newer            warn if any file is newer than the archive\n",
+    num_online );
+  if( verbosity >= 1 ) std::fputs(
+    "      --debug=<level>         (0-1) print debug statistics to stderr\n", stdout );
+  std::fputs(
+    "\nIf no archive is specified, tarlz tries to read it from standard input or\n"
+    "write it to standard output.\n"
+    "Numbers may contain underscore separators between groups of digits and\n"
+    "may be followed by a SI or binary multiplier: 1_234_567kB, 4KiB.\n"
+    "\n*Exit status*\n"
+    "0 for a normal exit, 1 for environmental problems (file not found, files\n"
+    "differ, invalid command-line options, I/O errors, etc), 2 to indicate a\n"
+    "corrupt or invalid input file, 3 for an internal consistency error (e.g.,\n"
+    "bug) which caused tarlz to panic.\n"
+    "\nReport bugs to lzip-bug@nongnu.org\n"
+    "Tarlz home page: http://www.nongnu.org/lzip/tarlz.html\n", stdout );
   }
 
 
@@ -170,9 +173,9 @@ void show_version()
   {
   std::printf( "%s %s\n", program_name, PROGVERSION );
   std::printf( "Copyright (C) %s Antonio Diaz Diaz.\n", program_year );
-  std::printf( "License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>\n"
-               "This is free software: you are free to change and redistribute it.\n"
-               "There is NO WARRANTY, to the extent permitted by law.\n" );
+  std::fputs( "License GPLv2+: GNU GPL version 2 or later <http://gnu.org/licenses/gpl.html>\n"
+              "This is free software: you are free to change and redistribute it.\n"
+              "There is NO WARRANTY, to the extent permitted by law.\n", stdout );
   show_lzlib_version();
   }
 
@@ -224,10 +227,56 @@ int check_lib()
   }
 
 
+int chvalue( const unsigned char ch )
+  {
+  if( ch >= '0' && ch <= '9' ) return ch - '0';
+  if( ch >= 'A' && ch <= 'Z' ) return ch - 'A' + 10;
+  if( ch >= 'a' && ch <= 'z' ) return ch - 'a' + 10;
+  return 255;
+  }
+
+long long strtoll_( const char * const ptr, const char ** tail, int base )
+  {
+  if( tail ) *tail = ptr;				// error value
+  int i = 0;
+  while( std::isspace( ptr[i] ) || (unsigned char)ptr[i] == 0xA0 ) ++i;
+  const bool minus = ptr[i] == '-';
+  if( minus || ptr[i] == '+' ) ++i;
+  if( base < 0 || base > 36 || base == 1 ||
+      ( base == 0 && !std::isdigit( ptr[i] ) ) ||
+      ( base != 0 && chvalue( ptr[i] ) >= base ) )
+    { errno = EINVAL; return 0; }
+
+  if( base == 0 )
+    {
+    if( ptr[i] != '0' ) base = 10;			// decimal
+    else if( ptr[i+1] == 'x' || ptr[i+1] == 'X' ) { base = 16; i += 2; }
+    else base = 8;					// octal or 0
+    }
+  const int dpg = ( base != 16 ) ? 3 : 2;	// min digits per group
+  int dig = dpg - 1;	// digits in current group, first may have 1 digit
+  const unsigned long long limit = minus ? LLONG_MAX + 1ULL : LLONG_MAX;
+  unsigned long long result = 0;
+  bool erange = false;
+  for( ; ptr[i]; ++i )
+    {
+    if( ptr[i] == '_' ) { if( dig < dpg ) break; else { dig = 0; continue; } }
+    const int val = chvalue( ptr[i] ); if( val >= base ) break; else ++dig;
+    if( !erange && ( limit - val ) / base >= result )
+      result = result * base + val;
+    else erange = true;
+    }
+  if( dig < dpg ) { errno = EINVAL; return 0; }
+  if( tail ) *tail = ptr + i;
+  if( erange ) { errno = ERANGE; return minus ? LLONG_MIN : LLONG_MAX; }
+  return minus ? 0LL - result : result;
+  }
+
+
 // separate numbers of 5 or more digits in groups of 3 digits using '_'
 const char * format_num3p( long long num )
   {
-  enum { buffers = 8, bufsize = 4 * sizeof num, n = 10 };
+  enum { buffers = 8, bufsize = 4 * sizeof num };
   const char * const si_prefix = "kMGTPEZYRQ";
   const char * const binary_prefix = "KMGTPEZYRQ";
   static char buffer[buffers][bufsize];	// circle of buffers for printf
@@ -237,14 +286,14 @@ const char * format_num3p( long long num )
   char * p = buf + bufsize - 1;		// fill the buffer backwards
   *p = 0;				// terminator
   const bool negative = num < 0;
-  if( num > 9999 || num < -9999 )
+  if( num >= 10000 || num <= -10000 )
     {
     char prefix = 0;			// try binary first, then si
-    for( int i = 0; i < n && num != 0 && num % 1024 == 0; ++i )
+    for( int i = 0; num != 0 && num % 1024 == 0 && binary_prefix[i]; ++i )
       { num /= 1024; prefix = binary_prefix[i]; }
     if( prefix ) *(--p) = 'i';
     else
-      for( int i = 0; i < n && num != 0 && num % 1000 == 0; ++i )
+      for( int i = 0; num != 0 && num % 1000 == 0 && si_prefix[i]; ++i )
         { num /= 1000; prefix = si_prefix[i]; }
     if( prefix ) *(--p) = prefix;
     }
@@ -275,18 +324,18 @@ long long getnum( const char * const arg, const char * const option_name,
                   const long long llimit = LLONG_MIN,
                   const long long ulimit = LLONG_MAX )
   {
-  char * tail;
+  const char * tail;
   errno = 0;
-  long long result = strtoll( arg, &tail, 0 );
+  long long result = strtoll_( arg, &tail, 0 );
   if( tail == arg )
     { show_option_error( arg, "Bad or missing numerical argument in",
                          option_name ); std::exit( 1 ); }
 
-  if( !errno && tail[0] )
+  if( !errno && *tail )
     {
     const int factor = (tail[1] == 'i') ? 1024 : 1000;
     int exponent = 0;				// 0 = bad multiplier
-    switch( tail[0] )
+    switch( *tail )
       {
       case 'Q': exponent = 10; break;
       case 'R': exponent = 9; break;
@@ -323,13 +372,26 @@ long long getnum( const char * const arg, const char * const option_name,
   }
 
 
+bool contains_control( const char * const filename )
+  {
+  for( const char * p = filename; *p; ++p )
+    if( ( *p <= 13 && *p >= 7 ) || *p == 27 || *p == 127 ) return true;
+  return false;
+  }
+
 void set_archive_name( std::string & archive_name, const std::string & new_name )
   {
   static bool first_call = true;
 
-  if( first_call ) { if( new_name != "-" ) archive_name = new_name;
-                     first_call = false; return; }
-  show_error( "Only one archive can be specified.", 0, true );
+  if( !first_call )
+    { show_error( "Only one archive can be specified.", 0, true );
+      std::exit( 1 ); }
+  first_call = false;
+  if( new_name == "-" ) return;
+  if( !contains_control( new_name.c_str() ) )
+    { archive_name = new_name; return; }
+  show_file_error( new_name.c_str(),
+                   "Control characters not allowed in archive name." );
   std::exit( 1 );
   }
 
@@ -370,10 +432,9 @@ long long parse_mtime( const char * arg, const char * const pn )
         struct tm t;
         t.tm_year = y - 1900; t.tm_mon = mo - 1; t.tm_mday = d;
         t.tm_hour = (n >= 5) ? h : 0; t.tm_min = (n >= 6) ? m : 0;
-        t.tm_sec = (n >= 7) ? s : 0; t.tm_isdst = -1;
-        errno = 0;
+        t.tm_sec = (n >= 7) ? s : 0; t.tm_isdst = -1; t.tm_wday = -1;
         const long long mtime = std::mktime( &t );
-        if( mtime != -1 || errno == 0 ) return mtime;	// valid datetime
+        if( mtime != -1 || t.tm_wday != -1 ) return mtime;	// valid mtime
         }
       show_option_error( arg, "Date out of limits in", pn ); std::exit( 1 );
       }
@@ -403,6 +464,27 @@ long long parse_group( const char * const arg, const char * const pn )
   }
 
 } // end namespace
+
+// separate numbers of 5 or more digits in groups of 3 digits using '_'
+const char * format_num3( unsigned long long num, const bool negative )
+  {
+  enum { buffers = 8, bufsize = 4 * sizeof num };
+  static char buffer[buffers][bufsize];	// circle of buffers for printf
+  static int current = 0;
+
+  char * const buf = buffer[current++]; current %= buffers;
+  char * p = buf + bufsize - 1;		// fill the buffer backwards
+  *p = 0;				// terminator
+  const bool split = num >= 10000;
+
+  for( int i = 0; ; )
+    {
+    *(--p) = num % 10 + '0'; num /= 10; if( num == 0 ) break;
+    if( split && ++i >= 3 ) { i = 0; *(--p) = '_'; }
+    }
+  if( negative ) *(--p) = '-';
+  return p;
+  }
 
 
 int hstat( const char * const filename, struct stat * const st,
@@ -537,8 +619,8 @@ bool format_file_error( Resizable_buffer & rbuf, const char * const filename,
   for( int i = 0; i < 2; ++i )		// resize rbuf if not large enough
     {
     const int len = snprintf( rbuf(), rbuf.size(), "%s: %s: %s%s%s\n",
-                    program_name, filename, msg, ( errcode > 0 ) ? ": " : "",
-                    ( errcode > 0 ) ? std::strerror( errcode ) : "" );
+          program_name, filename, msg, ( errcode > 0 ) ? ": " : "",
+          ( errcode > 0 ) ? std::strerror( errcode ) : "" );
     if( len < (int)rbuf.size() || !rbuf.resize( len + 1 ) ) break;
     }
   return true;
@@ -548,8 +630,8 @@ void show_file_error( const char * const filename, const char * const msg,
                       const int errcode )
   {
   if( verbosity >= 0 && msg && msg[0] )
-    std::fprintf( stderr, "%s: %s: %s%s%s\n", program_name, filename, msg,
-                  ( errcode > 0 ) ? ": " : "",
+    std::fprintf( stderr, "%s: %s: %s%s%s\n", program_name,
+                  filename, msg, ( errcode > 0 ) ? ": " : "",
                   ( errcode > 0 ) ? std::strerror( errcode ) : "" );
   }
 
@@ -568,8 +650,8 @@ int main( const int argc, const char * const argv[] )
 
   enum { opt_ano = 256, opt_aso, opt_bso, opt_chk, opt_crc, opt_dbg, opt_del,
          opt_dep, opt_dso, opt_exc, opt_grp, opt_iid, opt_imd, opt_kd,
-         opt_mnt, opt_mti, opt_nso, opt_ofl, opt_out, opt_own, opt_par,
-         opt_per, opt_rec, opt_sol, opt_tb, opt_un, opt_wn, opt_xdv };
+         opt_mnt, opt_mti, opt_nso, opt_num, opt_ofl, opt_out, opt_own,
+         opt_par, opt_per, opt_rec, opt_sol, opt_tb, opt_un, opt_wn, opt_xdv };
   const Arg_parser::Option options[] =
     {
     { '0', 0,                      Arg_parser::no  },
@@ -620,6 +702,7 @@ int main( const int argc, const char * const argv[] )
     { opt_mnt, "mount",            Arg_parser::no  },
     { opt_mti, "mtime",            Arg_parser::yes },
     { opt_nso, "no-solid",         Arg_parser::no  },
+    { opt_num, "numeric-owner",    Arg_parser::no  },
     { opt_ofl, "ignore-overflow",  Arg_parser::no  },
     { opt_out, "out-slots",        Arg_parser::yes },
     { opt_own, "owner",            Arg_parser::yes },
@@ -633,7 +716,7 @@ int main( const int argc, const char * const argv[] )
     { opt_xdv, "xdev",             Arg_parser::no  },
     { 0, 0,                        Arg_parser::no  } };
 
-  const Arg_parser parser( argc, argv, options, true );	// in_order
+  const Arg_parser parser( argc, argv, options, Arg_parser::in_order );
   if( parser.error().size() )				// bad option
     { show_error( parser.error().c_str(), 0, true ); return 1; }
   Cl_options cl_opts( parser );
@@ -649,16 +732,17 @@ int main( const int argc, const char * const argv[] )
   for( int argind = 0; argind < parser.arguments(); ++argind )
     {
     const int code = parser.code( argind );
-    if( !code )						// skip non-options
-      {
-      if( parser.argument( argind ).empty() )
-        { show_error( "Empty non-option argument." ); return 1; }
-      if( parser.argument( argind ) != "-" ) cl_opts.filenames_given = true;
-      ++cl_opts.num_files; continue;
-      }
-    const char * const pn = parser.parsed_name( argind ).c_str();
     const std::string & sarg = parser.argument( argind );
+    if( !code )					// check and skip non-options
+      {
+      if( sarg.empty() )
+        { show_error( "Empty non-option argument." ); return 1; }
+      if( sarg != "-" && ++cl_opts.num_files == 0 )
+        { show_error( "Too many files." ); return 1; }
+      continue;
+      }
     const char * const arg = sarg.c_str();
+    const char * const pn = parser.parsed_name( argind ).c_str();
     switch( code )
       {
       case '0': case '1': case '2': case '3': case '4':
@@ -705,6 +789,7 @@ int main( const int argc, const char * const argv[] )
       case opt_mti: cl_opts.mtime = parse_mtime( arg, pn );
                     cl_opts.mtime_set = true; break;
       case opt_nso: cl_opts.solidity = no_solid; break;
+      case opt_num: cl_opts.numeric_owner = true; break;
       case opt_ofl: cl_opts.ignore_overflow = true; break;
       case opt_out: cl_opts.out_slots = getnum( arg, pn, 1, 1024 ); break;
       case opt_own: cl_opts.uid = parse_owner( arg, pn ); break;

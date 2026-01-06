@@ -1,3 +1,24 @@
+2026-01-03  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.29 released.
+	* New option '--numeric-owner'.
+	* common_decode.cc (read_t_list): Quit early if NUL bytes in list.
+	* extended.cc (Extended::parse): Ignore keyword 'ctime'.
+	* lzip_index.cc (skip_box): New function.
+	* main.cc (parse_mtime): Fix checking of errors in mktime.
+	  (Thanks to Michael Shigorin).
+	  (getnum): Accept underscore separators ('_').
+	  (set_archive_name): Reject archive name with control characters.
+	* tarlz.h: Limit max_edata_size to 1 GiB.
+	* tarlz.texi: Add 'Table of SI and binary prefixes'.
+	* check.sh: Skip symbolic link archiving test on Cygwin.
+	  (Reported by Sonia Diaz).
+
+2025-06-24  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 0.28.1 released.
+	* decode.h: #include <sys/types.h>. (Reported by lid gnulinux).
+
 2025-06-20  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.28 released.
@@ -16,8 +37,8 @@
 2025-02-28  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 0.27 released.
-	* common_decode.cc (format_member_name): Print seconds since epoch
-	  if date is out of range. Use at least 4 digits to print years.
+	* common_decode.cc (format_member_name): If date is out of range,
+	  print seconds since epoch. Use at least 4 digits to print years.
 	  Print typeflag after the member name if unknown file type.
 	  (make_dirs): stat last dir before trying to create directories.
 	* decode.cc (skip_warn): Diagnose a corrupt tar header.
@@ -270,7 +291,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2013-2025 Antonio Diaz Diaz.
+Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable, but just
 in case, you have unlimited permission to copy, distribute, and modify it.

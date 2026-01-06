@@ -16,12 +16,12 @@
 -- For further information about lzip-builder you can visit
 -- https://codeberg.org/cdsoft/lzip-builder
 
-var "release" "2025-03-04"
+var "release" "2026-01-07"
 
 var "lzlib_version"         "1.15"
 var "lzip_version"          "1.25"
 var "plzip_version"         "1.12"
-var "tarlz_version"         "0.28"
+var "tarlz_version"         "0.29"
 var "lziprecover_version"   "1.25"
 
 help.name "lzip-builder"

@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -27,8 +27,6 @@
 #if !defined __FreeBSD__ && !defined __OpenBSD__ && !defined __NetBSD__ && \
     !defined __DragonFly__ && !defined __APPLE__ && !defined __OS2__
 #include <sys/sysmacros.h>	// major, minor, makedev
-#else
-#include <sys/types.h>		// major, minor, makedev
 #endif
 
 #include "tarlz.h"
@@ -757,7 +755,8 @@ int decode_lz( const Cl_options & cl_opts, const Archive_descriptor & ad,
   if( close( ad.infd ) != 0 )
     { show_file_error( ad.namep, eclosa_msg, errno ); set_retval( retval, 1 ); }
 
-  if( retval == 0 && cl_names.names_remain( cl_opts.parser ) ) retval = 1;
+  if( retval == 0 && cl_names.names_remain( cl_opts.parser ) )
+    set_error_status( 1 );
 
   if( cl_opts.debug_level & 1 )
     std::fprintf( stderr,

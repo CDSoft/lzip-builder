@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -153,8 +153,7 @@ long long check_uncompressed_appendable( const int fd, const bool remove_eoa )
       if( prev_extended ) return -1;
       const long long edsize = parse_octal( header + size_o, size_l );
       const long long bufsize = round_up( edsize );
-      if( bufsize > extended.max_edata_size || edsize >= 1LL << 33 ||
-          edsize <= 0 ) return -1;	// overflow or no extended data
+      if( bufsize <= 0 || bufsize > extended.max_edata_size ) return -1;
       if( !rbuf.resize( bufsize ) ) return -2;
       if( readblock( fd, rbuf.u8(), bufsize ) != bufsize )
         return -1;
@@ -530,8 +529,9 @@ bool fill_headers( std::string & estr, const char * const filename,
          set_error_status( 2 ); return false; }
   header[typeflag_o] = typeflag;
 
-  // prevent two threads from accessing a name database at the same time
-  if( uid >= 0 && uid == (long long)( (uid_t)uid ) )	// get name if in range
+  /* Get owner/group name if uid/gid is in range and names are not disabled.
+     Prevent two threads from accessing a name database at the same time. */
+  if( uid >= 0 && uid == (long long)( (uid_t)uid ) && !gcl_opts->numeric_owner )
     { static pthread_mutex_t uid_mutex = PTHREAD_MUTEX_INITIALIZER;
       static long long cached_uid = -1;
       static std::string cached_pw_name;
@@ -542,7 +542,7 @@ bool fill_headers( std::string & estr, const char * const filename,
           cached_uid = uid; cached_pw_name = pw->pw_name; }
       std::strncpy( (char *)header + uname_o, cached_pw_name.c_str(), uname_l - 1 );
 no_uid: xunlock( &uid_mutex ); }
-  if( gid >= 0 && gid == (long long)( (gid_t)gid ) )	// get name if in range
+  if( gid >= 0 && gid == (long long)( (gid_t)gid ) && !gcl_opts->numeric_owner )
     { static pthread_mutex_t gid_mutex = PTHREAD_MUTEX_INITIALIZER;
       static long long cached_gid = -1;
       static std::string cached_gr_name;
@@ -620,7 +620,7 @@ int Cl_options::compressed() const	// tri-state bool with error (-2)
 
 int concatenate( const Cl_options & cl_opts )
   {
-  if( cl_opts.num_files <= 0 )
+  if( cl_opts.num_files == 0 )
     { if( verbosity >= 1 ) show_error( "Nothing to concatenate." ); return 0; }
   int compressed = cl_opts.compressed();		// tri-state bool
   if( compressed == -2 ) return 1;
@@ -733,7 +733,7 @@ int encode( const Cl_options & cl_opts )
   gcl_opts = &cl_opts;
 
   const bool append = cl_opts.program_mode == m_append;
-  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present )
+  if( cl_opts.num_files == 0 && !cl_opts.option_T_present )
     {
     if( !append && !to_stdout )			// create archive
       { show_error( "Cowardly refusing to create an empty archive.", 0, true );

@@ -1,6 +1,6 @@
 #include <sys/stat.h>
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+#include <sys/types.h>		// uid_t, gid_t, (BSD major, minor, makedev)
 
 inline bool data_may_follow( const Typeflag typeflag )
   { return typeflag == tf_regular || typeflag == tf_hiperf; }
@@ -38,14 +40,15 @@ struct Chdir_error {};
 
 class T_names		// list of names in the argument of an option '-T'
   {
-  char * buffer;			// max 4 GiB for the whole -T file
+  const char * buffer;			// max 4 GiB for the whole -T file
   long file_size;			// 0 for empty file
   std::vector< uint32_t > name_idx;	// for each name in buffer
   std::vector< uint8_t > name_pending_;	// 'uint8_t' for concurrent update
 
 public:
   explicit T_names( const char * const filename );
-  ~T_names() { if( buffer ) std::free( buffer ); buffer = 0; file_size = 0; }
+  ~T_names()
+    { if( buffer ) std::free( (void *)buffer ); buffer = 0; file_size = 0; }
 
   unsigned names() const { return name_idx.size(); }
   const char * name( const unsigned i ) const { return buffer + name_idx[i]; }

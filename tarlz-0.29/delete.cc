@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -65,8 +65,8 @@ int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
   if( ( close( outfd ) | close( ad.infd ) ) != 0 && retval == 0 )
     { show_file_error( ad.namep, eclosa_msg, errno ); retval = 1; }
 
-  if( retval == 0 && cl_names.names_remain( parser ) ) retval = 1;
-  return retval;
+  if( retval == 0 && cl_names.names_remain( parser ) ) set_error_status( 1 );
+  return final_exit_status( retval );
   }
 
 
@@ -75,14 +75,14 @@ int tail_copy( const Arg_parser & parser, const Archive_descriptor & ad,
 */
 int delete_members( const Cl_options & cl_opts )
   {
-  if( cl_opts.num_files <= 0 && !cl_opts.option_T_present )
+  if( cl_opts.num_files == 0 && !cl_opts.option_T_present )
     { if( verbosity >= 1 ) show_error( "Nothing to delete." ); return 0; }
   if( cl_opts.archive_name.empty() )
     { show_error( "Deleting from stdin not implemented yet." ); return 1; }
   const Archive_descriptor ad( cl_opts.archive_name );
   if( ad.infd < 0 ) return 1;
   if( ad.name.size() && ad.indexed && ad.lzip_index.multi_empty() )
-    { show_file_error( ad.namep, empty_msg ); close( ad.infd ); return 2; }
+    { show_file_error( ad.namep, empty_member_msg ); close( ad.infd ); return 2; }
   const int outfd = open_outstream( cl_opts.archive_name, false );
   if( outfd < 0 ) { close( ad.infd ); return 1; }
 

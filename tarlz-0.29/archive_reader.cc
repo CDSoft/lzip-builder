@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -87,9 +87,8 @@ int Archive_reader_base::parse_records( Extended & extended,
   {
   const long long edsize = parse_octal( header + size_o, size_l );
   const long long bufsize = round_up( edsize );
-  if( edsize <= 0 ) return err( 2, misrec_msg );	// no extended records
-  if( edsize >= 1LL << 33 || bufsize > extended.max_edata_size )
-    return err( -2, longrec_msg );			// records too long
+  if( bufsize <= 0 ) return err( 2, misrec_msg );	// no extended records
+  if( bufsize > extended.max_edata_size ) return err( -2, longrec_msg );
   if( !rbuf.resize( bufsize ) ) return err( -1, mem_msg );
   e_msg_ = ""; e_code_ = 0;
   int retval = read( rbuf.u8(), bufsize );	// extended records buffer

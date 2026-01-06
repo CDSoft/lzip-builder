@@ -28,11 +28,11 @@
 builddir = .build
 ninja_required_version = 1.11.1
 
-release = 2025-03-04
+release = 2026-01-07
 lzlib_version = 1.15
 lzip_version = 1.25
 plzip_version = 1.12
-tarlz_version = 0.28
+tarlz_version = 0.29
 lziprecover_version = 1.25
 tmp = $builddir/tmp
 bin = $builddir/bin

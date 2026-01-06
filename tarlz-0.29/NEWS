@@ -1,0 +1,20 @@
+Changes in version 0.29:
+
+A bug has been fixed that prevented the detection of
+'--mtime=1969-12-31T23:59:59' as an invalid date on some systems.
+(Thanks to Michael Shigorin).
+
+The new option '--numeric-owner', which tells tarlz to not write owner or
+group names to the archive, has been added.
+
+The extended keyword 'ctime' is now recognized.
+
+Large numbers in option arguments are now accepted with underscore
+separators (--mtime=@123_456_789).
+
+'-f' now rejects archive names with control characters.
+
+'make check' now skips the symbolic link archiving test on Cygwin.
+(Reported by Sonia Diaz).
+
+A table of SI and binary prefixes has been added to the manual.

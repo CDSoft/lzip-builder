@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -63,8 +63,7 @@ inline void print_octal( uint8_t * const buf, int size, unsigned long long num )
 //
 inline unsigned long long round_up( const unsigned long long size )
   {
-  const int rem = size % header_size;
-  const int padding = rem ? header_size - rem : 0;
+  const unsigned padding = ( header_size - size % header_size ) % header_size;
   return size + padding;
   }
 
@@ -186,7 +185,7 @@ class Extended			// stores metadata from/for extended records
                         std::vector< std::string > * const msg_vecp = 0 ) const;
 
 public:
-  enum { max_edata_size = ( INT_MAX / header_size - 2 ) * header_size };
+  enum { max_edata_size = ( 1 << 21 ) * header_size };	// 1 GiB
   enum { max_file_size = LLONG_MAX - header_size };	// for padding
   static const std::string crc_record;
   std::string removed_prefix;
@@ -432,12 +431,11 @@ struct Cl_options		// command-line options
   int data_size;
   int debug_level;
   int level;			// compression level, < 0 means uncompressed
-  int num_files;
+  unsigned num_files;		// number of files given in the command line
   int num_workers;		// start this many worker threads
   int out_slots;
   bool depth;
   bool dereference;
-  bool filenames_given;
   bool ignore_ids;
   bool ignore_metadata;
   bool ignore_overflow;
@@ -446,6 +444,7 @@ struct Cl_options		// command-line options
   bool missing_crc;
   bool mount;
   bool mtime_set;
+  bool numeric_owner;
   bool option_C_present;
   bool option_T_present;
   bool parallel;
@@ -459,12 +458,13 @@ struct Cl_options		// command-line options
     : parser( ap ), mtime( 0 ), uid( -1 ), gid( -1 ), program_mode( m_none ),
       solidity( bsolid ), data_size( 0 ), debug_level( 0 ), level( 6 ),
       num_files( 0 ), num_workers( -1 ), out_slots( 64 ), depth( false ),
-      dereference( false ), filenames_given( false ), ignore_ids( false ),
-      ignore_metadata( false ), ignore_overflow( false ), keep_damaged( false ),
-      level_set( false ), missing_crc( false ), mount( false ),
-      mtime_set( false ), option_C_present( false ), option_T_present( false ),
-      parallel( false ), permissive( false ), preserve_permissions( false ),
-      recursive( true ), warn_newer( false ), xdev( false ) {}
+      dereference( false ), ignore_ids( false ), ignore_metadata( false ),
+      ignore_overflow( false ), keep_damaged( false ), level_set( false ),
+      missing_crc( false ), mount( false ), mtime_set( false ),
+      numeric_owner( false ), option_C_present( false ),
+      option_T_present( false ), parallel( false ), permissive( false ),
+      preserve_permissions( false ), recursive( true ), warn_newer( false ),
+      xdev( false ) {}
 
   void set_level( const int l ) { level = l; level_set = true; }
 
@@ -496,7 +496,6 @@ const char * const posix_msg = "This does not look like a POSIX tar archive.";
 const char * const posix_lz_msg = "This does not look like a POSIX tar.lz archive.";
 const char * const eclosa_msg = "Error closing archive";
 const char * const eclosf_msg = "Error closing file";
-const char * const nfound_msg = "Not found in archive.";
 const char * const rd_open_msg = "Can't open for reading";
 const char * const rd_err_msg = "Read error";
 const char * const wr_err_msg = "Write error";
@@ -579,6 +578,7 @@ struct stat;
 int hstat( const char * const filename, struct stat * const st,
            const bool dereference );
 bool nonempty_arg( const Arg_parser & parser, const int i );
+const char * format_num3( unsigned long long num, const bool negative = false );
 int open_instream( const char * const name, struct stat * const in_statsp = 0 );
 int open_outstream( const std::string & name, const bool create = true,
                     Resizable_buffer * const rbufp = 0, const bool force = true );

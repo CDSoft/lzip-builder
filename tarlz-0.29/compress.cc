@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -251,9 +251,9 @@ int compress_archive( const Cl_options & cl_opts,
       {
       const long long edsize = parse_octal( rbuf.u8() + size_o, size_l );
       const long long bufsize = round_up( edsize );
-      if( bufsize > extended.max_edata_size || edsize >= 1LL << 33 ||
-          edsize <= 0 )			// overflow or no extended data
-        { show_file_error( filename, bad_hdr_msg ); close( infd ); return 2; }
+      if( bufsize <= 0 || bufsize > extended.max_edata_size )
+        { show_file_error( filename, (bufsize <= 0) ? misrec_msg : longrec_msg );
+          close( infd ); return 2; }
       if( !rbuf.resize( total_header_size + bufsize ) )
         { show_file_error( filename, mem_msg ); close( infd ); return 1; }
       if( readblock( infd, rbuf.u8() + total_header_size, bufsize ) != bufsize )
@@ -347,7 +347,7 @@ int compress( const Cl_options & cl_opts )
   else outfd = -1;
   const bool to_file = !to_stdout && cl_opts.output_filename.size();
   if( to_file ) output_filename = cl_opts.output_filename;
-  if( !to_stdout && ( cl_opts.filenames_given || to_file ) )
+  if( !to_stdout && ( cl_opts.num_files > 0 || to_file ) )
     set_signals( signal_handler );
 
   LZ_Encoder * encoder = LZ_compress_open(
@@ -362,7 +362,7 @@ int compress( const Cl_options & cl_opts )
     return 1;
     }
 
-  if( !cl_opts.filenames_given )
+  if( cl_opts.num_files == 0 )
     return compress_archive( cl_opts, "-", encoder, to_stdout, to_file );
   int retval = 0;
   bool stdin_used = false;

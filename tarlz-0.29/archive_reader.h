@@ -1,5 +1,5 @@
 /* Tarlz - Archiver with multimember lzip compression
-   Copyright (C) 2013-2025 Antonio Diaz Diaz.
+   Copyright (C) 2013-2026 Antonio Diaz Diaz.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -121,4 +121,4 @@ public:
   };
 
 
-const char * const empty_msg = "Empty lzip member not allowed.";
+const char * const empty_member_msg = "Empty lzip member not allowed.";
