@@ -1,0 +1,42 @@
+Changes in version 1.26:
+
+'--fec=create' can now process efficiently input files larger than RAM.
+If the size of the input file is larger than half the system's RAM,
+'--fec=create' now creates all the packets of the fec file concurrently to
+avoid reading the input file more than once.
+
+'--fec=repair' and '--fec=test' can now process input files larger than RAM.
+
+'--fec=repair/test/list' now exit immediately with a diagnostic if the
+protected file is passed by mistake as the fec file.
+
+'--fec=repair' now inserts '_fixed' before '.tar' instead of after.
+
+The new option '--append=<file>', which appends the contents of <file> as
+trailing data to another file(s) in a safe way, has been added.
+
+'-dvv' and '-tvv' now print (de)compressed sizes instead of compression
+ratio. (Sizes are more informative than compression ratio).
+
+Large numbers in option arguments are now accepted with underscore
+separators (-b 123_456_789).
+
+Large numbers are now printed with underscore separators (123_456_789).
+
+'--list' now can safely skip any trailing data added to a lzip file by the
+option '--append'.
+
+'--list' now prints '+t' after the number of members to indicate the
+presence of trailing data, and prints the size of the trailing data below
+the size of the last member.
+
+'-lvv' now prints a blank line between the list of members of each
+multimember file and the next file.
+
+Diagnostics for protected file size mismatch in '--fec=repair/test' have
+been improved.
+
+It has been documented in the manual how to append a fec recovery record to
+a tar.lz archive, and how to use it to test and repair the archive.
+
+'EXIT STATUS' now has its own section in the man page.
